@@ -1,9 +1,15 @@
-name: tray_manager_workspace
-homepage: https://github.com/leanflutter/tray_manager
+name: desktop_shell_workspace
+homepage: https://github.com/aimer63/desktop_shell
 publish_to: none
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
 
 dev_dependencies:
-  melos: ^3.1.0
+  melos: ^6.2.0
+
+# Attribution:
+# This workspace combines:
+# - tray_manager (https://github.com/leanflutter/tray_manager) by leanflutter
+# - window_manager (https://github.com/leanflutter/window_manager) by leanflutter
+# Both are MIT licensed.

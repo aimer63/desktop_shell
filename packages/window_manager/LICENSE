@@ -1,7 +1,6 @@
 MIT License
 
-Copyright (c) 2022-2024 LiJianying <lijy91@foxmail.com> (tray_manager and window_manager)
-Copyright (c) 2025 aimer63 (desktop_shell modifications and unification)
+Copyright (c) 2022-present LiJianying <lijy91@foxmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-ATTRIBUTION:
-
-This software includes code from:
-- tray_manager (https://github.com/leanflutter/tray_manager) by leanflutter (LiJianying)
-- window_manager (https://github.com/leanflutter/window_manager) by leanflutter (LiJianying)
-
-Both original projects are MIT licensed.
