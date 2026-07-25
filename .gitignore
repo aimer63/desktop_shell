@@ -1,7 +1,40 @@
-.dart_tool/
-.idea/
-
-*.iml
-pubspec_overrides.yaml
-pubspec.lock
+# Build artifacts
+build/
 .build/
+
+# Dart/Flutter
+.dart_tool/
+.pub-cache/
+.pub/
+.flutter-plugins-dependencies
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Generated files
+pubspec.lock
+pubspec_overrides.yaml
+
+# Ephemeral plugin files
+linux/flutter/
+windows/flutter/
+macos/Flutter/
+
+# Test artifacts
+coverage/
+.test_results/

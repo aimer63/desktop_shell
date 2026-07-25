@@ -1,0 +1,23 @@
+name: desktop_shell_example
+description: Example app demonstrating desktop_shell plugin functionality
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.12.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  desktop_shell:
+    path: ../
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
