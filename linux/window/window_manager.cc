@@ -1,11 +1,22 @@
 #include "window_manager.h"
 
+#include <glib-object.h>
+
+// Define the instance struct
 struct _DesktopShellWindowManager {
   GObject parent_instance;
   GtkWindow* window;
   gboolean prevent_close;
   gulong delete_event_handler_id;
 };
+
+// Define the class struct
+typedef struct {
+  GObjectClass parent_class;
+} DesktopShellWindowManagerClass;
+
+// Define the type
+G_DEFINE_TYPE(DesktopShellWindowManager, desktop_shell_window_manager, G_TYPE_OBJECT)
 
 static void desktop_shell_window_manager_init(DesktopShellWindowManager* self) {
   self->window = nullptr;
@@ -34,14 +45,13 @@ static void desktop_shell_window_manager_finalize(GObject* object) {
     g_signal_handler_disconnect(self->window, self->delete_event_handler_id);
   }
 
-  G_OBJECT_CLASS(g_type_class_peek_parent(G_OBJECT_GET_CLASS(object)))->finalize(object);
+  G_OBJECT_CLASS(desktop_shell_window_manager_parent_class)->finalize(object);
 }
 
-static void desktop_shell_window_manager_class_init(GObjectClass* klass) {
-  klass->finalize = desktop_shell_window_manager_finalize;
+static void desktop_shell_window_manager_class_init(DesktopShellWindowManagerClass* klass) {
+  GObjectClass* object_class = G_OBJECT_CLASS(klass);
+  object_class->finalize = desktop_shell_window_manager_finalize;
 }
-
-G_DEFINE_TYPE(DesktopShellWindowManager, desktop_shell_window_manager, G_TYPE_OBJECT)
 
 DesktopShellWindowManager* desktop_shell_window_manager_new(GtkWindow* window) {
   DesktopShellWindowManager* manager = (DesktopShellWindowManager*)g_object_new(

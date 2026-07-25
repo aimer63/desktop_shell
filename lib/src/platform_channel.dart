@@ -21,14 +21,22 @@ Future<Map<String, dynamic>?> invokeMethodWithResult(
   dynamic arguments,
 ]) async {
   try {
-    final result = await desktopShellChannel.invokeMethod<Map<dynamic, dynamic>>(
+    final result = await desktopShellChannel.invokeMethod<dynamic>(
       method,
       arguments,
     );
     if (result == null) {
       return null;
     }
-    return Map<String, dynamic>.from(result);
+    // Handle both Map and bool responses from native
+    if (result is Map) {
+      return Map<String, dynamic>.from(result);
+    }
+    // Success responses return true (bool) from native
+    if (result == true) {
+      return null;
+    }
+    return {'error': true, 'message': 'Unexpected result: $result'};
   } on PlatformException catch (e) {
     return {
       'error': true,
