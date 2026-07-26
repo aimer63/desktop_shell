@@ -8,11 +8,13 @@ Rules and conventions for AI agents working on the desktop_shell plugin.
 
 ## Project Overview
 
-desktop_shell is a unified Flutter desktop plugin combining system tray and window management functionality.
+desktop_shell is a unified Flutter desktop plugin combining system tray and window
+management functionality.
 
 ### Purpose
 
-Merges [tray_manager](https://github.com/leanflutter/tray_manager) and [window_manager](https://github.com/leanflutter/window_manager) into a single cohesive API with explicit error handling.
+Merges [tray_manager](https://github.com/leanflutter/tray_manager) and[window_manager](https://github.com/leanflutter/window_manager) into a single cohesive API with explicit error
+handling.
 
 ### Scope
 
