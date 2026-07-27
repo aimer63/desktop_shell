@@ -12,22 +12,14 @@ final class MenuItem {
   /// Whether this item is checked (for checkbox items).
   final bool checked;
 
-  /// Callback when the item is clicked.
-  final void Function(MenuItem)? onClick;
-
-  const MenuItem({
-    required this.key,
-    required this.label,
-    this.checked = false,
-    this.onClick,
-  }) : isSeparator = false;
+  const MenuItem({required this.key, required this.label, this.checked = false})
+    : isSeparator = false;
 
   const MenuItem.separator()
-      : key = '',
-        label = '',
-        isSeparator = true,
-        checked = false,
-        onClick = null;
+    : key = '',
+      label = '',
+      isSeparator = true,
+      checked = false;
 
   /// Convert to JSON for platform channel.
   Map<String, dynamic> toJson() {

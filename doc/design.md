@@ -3,20 +3,19 @@
 ## Overview
 
 Desktop shell combines system tray and window management functionality into a
-unified Flutter desktop plugin. This document describes the design decisions
-and architecture.
+unified Flutter desktop plugin with explicit error handling via Result types.
 
 ## Design Philosophy
 
-**Goal:** Create a maintainable, testable plugin with proper encapsulation.
+**Goal:** Create a maintainable, correct plugin with minimal API surface and
+explicit error handling.
 
-**Key principle:** State belongs to instances, not files. While Flutter desktop
-is single-instance, using instance-based storage provides:
+**Key principles:**
 
-- Clear ownership of resources
-- Easier testing (can create/destroy instances)
-- Better separation of concerns
-- Alignment with GObject patterns
+- **Explicit over implicit** - All callbacks required, no hidden defaults
+- **Simplified naming** - `show` not `showWindow`, single window implied
+- **Result-based errors** - No exceptions, all errors as typed values
+- **Minimal surface** - Only essential features, user decides behavior
 
 ## Architecture
 
@@ -122,7 +121,7 @@ because:
 
 **Responsibilities:**
 
-- Manage system tray icon
+- Manage system tray icon via AppIndicator
 - Handle tray menu creation and callbacks
 - Communicate menu item clicks back to Dart
 
@@ -139,7 +138,7 @@ because:
 
 - Control window visibility (show/hide/focus)
 - Intercept window close events
-- Manage "prevent close" state
+- Manage "prevent close" state (user-controlled)
 
 **Key design points:**
 
@@ -204,6 +203,196 @@ g_object_unref(plugin);  // Channel now holds the ref we passed
 // Line 941 in window_manager
 g_clear_object(&self->css_provider);
 ```
+
+## Method Call Flow
+
+```
+Dart -> Platform Channel -> desktop_shell_plugin.cc
+                                    |
+            +-----------------------+-----------------------+
+            |                                               |
+    Tray Methods (setTrayIcon, setTrayMenu)  Window Methods (show, hide)
+            |                                               |
+    tray_manager.cc                                window_manager.cc
+            |                                               |
+    libappindicator                                  GTK Window APIs
+```
+
+## Error Handling
+
+**Dart API:** All operations return `Result<(), Error>`.
+
+**Error types:** Specific error per operation with `Option<String> code`:
+
+```dart
+final class TrayIconError extends DesktopShellError {
+  final String details;
+  final Option<String> code;  // Optional error code
+  const TrayIconError(this.details, {this.code = const None()});
+}
+```
+
+**Native responses:** All methods return Map with `success`, `message`, and
+optional `code`:
+
+```cpp
+// Success
+fl_value_set_string(response, "success", fl_value_new_bool(true));
+
+// Error
+fl_value_set_string(response, "success", fl_value_new_bool(false));
+fl_value_set_string(response, "code", fl_value_new_string("FILE_NOT_FOUND"));
+fl_value_set_string(response, "message", fl_value_new_string("Icon not found"));
+```
+
+## Platform Channel Protocol
+
+### Method Names
+
+**Tray Methods:**
+
+| Method | Description |
+| ------ | ----------- |
+| `setTrayIcon` | Set tray icon from path |
+| `setTrayMenu` | Set context menu items |
+| `popUpTrayMenu` | Show context menu (Windows/macOS) |
+
+**Window Methods:**
+
+| Method | Description |
+| ------ | ----------- |
+| `show` | Show hidden window |
+| `hide` | Hide window to tray |
+| `focus` | Bring window to front |
+| `setPreventClose` | Intercept close button |
+
+**Lifecycle:**
+
+| Method | Description |
+| ------ | ----------- |
+| `destroy` | Cleanup resources |
+
+### Events (Native -> Dart)
+
+All callbacks required in `initialize()`:
+
+```dart
+Future<Result<DesktopShell, DesktopShellError>> initialize({
+  required String trayIcon,
+  required List<MenuItem> trayItems,
+  required void Function(DesktopShell) onWindowClose,
+  required void Function(DesktopShell) onTrayIconClick,
+  required void Function(DesktopShell, MenuItem) onTrayMenuItemClick,
+}) async
+```
+
+| Event | Required | Description |
+| ----- | -------- | ----------- |
+| `onWindowClose` | Yes | User clicks close button (use to hide to tray) |
+| `onTrayIconClick` | Yes | User clicks tray icon |
+| `onTrayMenuItemClick` | Yes | User selects menu item |
+
+**Note:** No per-item `onClick` on MenuItem. All menu clicks go through
+`onTrayMenuItemClick`.
+
+## Dart API
+
+### Initialization
+
+```dart
+final result = await initialize(
+  trayIcon: 'assets/icon.png',
+  trayItems: [
+    MenuItem(key: 'show', label: 'Show Window'),
+    MenuItem.separator(),
+    MenuItem(key: 'quit', label: 'Quit'),
+  ],
+  onWindowClose: (shell) async => await shell.hide(),
+  onTrayIconClick: (shell) async {},  // Linux: no-op
+  onTrayMenuItemClick: (shell, item) async {
+    switch (item.key) {
+      case 'show':
+        await shell.show();
+        await shell.focus();
+      case 'quit':
+        await shell.destroy();
+        exit(0);
+    }
+  },
+);
+```
+
+### DesktopShell Interface
+
+```dart
+abstract class DesktopShell {
+  Future<Result<(), TrayIconError>> setTrayIcon(String iconPath);
+  Future<Result<(), TrayMenuError>> setTrayMenu(List<MenuItem> items);
+  Future<Result<(), TrayPopupError>> popUpTrayMenu();
+  Future<Result<(), WindowShowError>> show();
+  Future<Result<(), WindowHideError>> hide();
+  Future<Result<(), WindowFocusError>> focus();
+  Future<Result<(), WindowPreventCloseError>> setPreventClose(bool prevent);
+  Future<Result<(), ShellDestroyError>> destroy();
+}
+```
+
+**Key design decisions:**
+
+- Simplified names: `show` not `showWindow` (single window implied)
+- `setPreventClose` not called automatically - user decides when
+- All methods return `Result<(), Error>` - explicit error handling
+
+## MenuItem
+
+```dart
+final class MenuItem {
+  final String key;        // Unique identifier
+  final String label;      // Display text
+  final bool checked;      // Checkbox state
+  final bool isSeparator;  // True for separator
+
+  const MenuItem({required this.key, required this.label, this.checked = false})
+    : isSeparator = false;
+
+  const MenuItem.separator()
+    : key = '',
+      label = '',
+      checked = false,
+      isSeparator = true;
+}
+```
+
+**No per-item callback.** Menu clicks handled globally via
+`onTrayMenuItemClick` in `initialize()`.
+
+## Platform-Specific Behavior
+
+### `popUpTrayMenu()`
+
+| Platform | Mechanism | User Action |
+| -------- | --------- | ----------- |
+| **Linux** | Automatic | None - menu appears on click |
+| **Windows** | `TrackPopupMenu(hMenu, x, y)` | Must call in `onTrayIconClick` |
+| **macOS** | `performClick()` on statusItem | Must call in `onTrayIconClick` |
+
+### `setPreventClose()`
+
+**Not called automatically in initialize().** User must explicitly call:
+
+```dart
+final result = await initialize(...);
+if (result case Ok(:final value)) {
+  final shell = value;
+  await shell.setPreventClose(true);  // User decides
+}
+```
+
+This flexibility supports:
+
+- Tray-only apps (no window)
+- Window-only apps (no tray)
+- Mixed use cases
 
 ## CMake Configuration
 
@@ -279,117 +468,6 @@ Plugin calls apply_standard_settings()
 **Important:** This function only exists if the app was created with
 `flutter create --platforms=linux`. Manually created CMake files will lack it.
 
-### Library Dependencies
-
-**Required packages:**
-
-- `libappindicator3-dev` or `libayatana-appindicator3-dev`
-- GTK3 development files
-- pkg-config
-
-**CMake detection:**
-
-```cmake
-pkg_check_modules(APPINDICATOR IMPORTED_TARGET ayatana-appindicator3-0.1)
-if(NOT APPINDICATOR_FOUND)
-  pkg_check_modules(APPINDICATOR IMPORTED_TARGET appindicator3-0.1)
-endif()
-```
-
-## Method Call Flow
-
-```
-Dart -> Platform Channel -> desktop_shell_plugin.cc
-                                    |
-            +-----------------------+-----------------------+
-            |                                               |
-    Tray Methods (setTrayIcon, setTrayMenu)  Window Methods (showWindow, hideWindow)
-            |                                               |
-    tray_manager.cc                                window_manager.cc
-            |                                               |
-    libappindicator                                  GTK Window APIs
-```
-
-## Error Handling Strategy
-
-**Dart API:** All operations return `Result<(), Error>` or `Result<Option<T>,
-Error>`.
-
-**Error types:** Specific error per operation with `Option<String> code`:
-
-```dart
-final class TrayIconError extends TrayError {
-  final String details;
-  final Option<String> code;  // Error code (e.g., FILE_NOT_FOUND)
-  const TrayIconError(this.details, {this.code = const None()});
-}
-```
-
-**Native responses:** All methods return Map with `success`, `message`, and
-optional `code` fields:
-
-```cpp
-// Success
-fl_value_set_string(response, "success", fl_value_new_bool(true));
-
-// Error
-fl_value_set_string(response, "success", fl_value_new_bool(false));
-fl_value_set_string(response, "code", fl_value_new_string("FILE_NOT_FOUND"));
-fl_value_set_string(response, "message", fl_value_new_string("Icon not found"));
-```
-
-## Platform Channel Protocol
-
-### Method Names
-
-**Tray Methods:**
-
-- `setTrayIcon` - Set tray icon from path
-- `setTrayMenu` - Set context menu items
-- `popUpContextMenu` - Show context menu
-
-**Window Methods:**
-
-- `showWindow` - Show hidden window
-- `hideWindow` - Hide window to tray
-- `focusWindow` - Bring window to front
-- `setPreventClose` - Intercept close button
-
-**Lifecycle:**
-
-- `destroy` - Cleanup resources
-
-### Events (Native -> Dart)
-
-Events use **callback pattern** passed to `initialize()`:
-
-```dart
-Future<Result<DesktopShell, DesktopShellError>> initialize({
-  required void Function(DesktopShell) onWindowClose,
-  void Function(DesktopShell)? onTrayIconClick,
-  void Function(DesktopShell, MenuItem)? onTrayMenuItemClick,
-})
-```
-
-- `onWindowClose` - User clicks close button (required, use to hide to tray)
-- `onTrayIconClick` - User clicks tray icon (Windows/macOS only)
-- `onTrayMenuItemClick` - User selects menu item
-
-## Platform-Specific Behavior
-
-### `popUpContextMenu()`
-
-| Platform | Mechanism | User Action |
-| -------- | --------- | ----------- |
-| **Linux** | Automatic | None - menu appears on click |
-| **Windows** | `TrackPopupMenu(hMenu, x, y)` | Must call in `onTrayIconClick` |
-| **macOS** | `performClick()` on statusItem | Must call in `onTrayIconClick` |
-
-**Why:** Linux AppIndicator handles clicks automatically. Windows requires
-explicit `TrackPopupMenu` call. macOS simulates click via `performClick`.
-
-## CMake Configuration
-
 ### Requirements
 
 - `libappindicator3-dev` or `libayatana-appindicator3-dev`
@@ -399,41 +477,33 @@ explicit `TrackPopupMenu` call. macOS simulates click via `performClick`.
 ### Key Settings
 
 ```cmake
-# Enable deprecated warnings (for appindicator)
-# but do not treat as errors
+# Use Flutter's standard settings
+apply_standard_settings(${PLUGIN_NAME})
+
+# Disable deprecated warnings for appindicator
 target_compile_options(${PLUGIN_NAME} PRIVATE
   -Wno-deprecated-declarations
 )
 
-# Link required libraries
+# Find appindicator
+pkg_check_modules(APPINDICATOR IMPORTED_TARGET ayatana-appindicator3-0.1)
+if(NOT APPINDICATOR_FOUND)
+  pkg_check_modules(APPINDICATOR IMPORTED_TARGET appindicator3-0.1)
+endif()
+
+# Link libraries
 target_link_libraries(${PLUGIN_NAME} PRIVATE
   flutter
   PkgConfig::APPINDICATOR
-  ${GTK_LIBRARIES}
+  PkgConfig::GTK
 )
 ```
-
-## Future Considerations
-
-### Potential Extensions
-
-1. **Multi-window support** - Architecture supports it
-2. **Custom tray icons** - SVG support, animation
-3. **Window state preservation** - Remember position/size
-4. **Keyboard shortcuts** - Global hotkeys
-
-### Known Limitations
-
-1. **Linux only** - Windows and macOS need separate implementations
-2. **Single tray** - One tray icon per app instance
-3. **AppIndicator deprecated** - Future: migrate to StatusNotifierItem
-4. **No multi-monitor awareness** - Tray appears on primary
 
 ## Testing Strategy
 
 ### Unit Testing
 
-Difficult for native code due to GTK/AppIndicator dependencies. Consider:
+Difficult for native code due to GTK/AppIndicator dependencies. Options:
 
 - Mocking GTK functions
 - Integration tests via example app
@@ -446,19 +516,15 @@ Use example app to verify:
 1. Tray icon appears
 2. Menu items work
 3. Window show/hide/focus work
-4. Close interception works
+4. Close interception works (if setPreventClose called)
 5. Cleanup works (no crashes on exit)
 
-## Lessons Learned
+## Known Limitations
 
-1. **Copy working patterns** - tray_manager and window_manager work; use their
-   patterns
-2. **GObject is complex** - Requires understanding of type system and
-   reference counting
-3. **Test incrementally** - Build and test each component separately
-4. **Documentation matters** - Line numbers and explanations save time
-5. **Admit mistakes** - Original plugins were correct; my implementation had
-   bugs
+1. **Linux only** - Windows and macOS need separate implementations
+2. **Single tray** - One tray icon per app instance
+3. **AppIndicator deprecated** - Future: migrate to StatusNotifierItem
+4. **No multi-monitor awareness** - Tray appears on primary
 
 ## References
 

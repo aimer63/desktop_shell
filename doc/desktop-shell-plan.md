@@ -3,7 +3,8 @@
 ## Goal
 
 Implement desktop_shell using **Option 3: Instance-based storage** with proper
-GObject types, following the patterns from window_manager.
+GObject types, following the patterns from window_manager, with unified tray
+and window management, explicit error handling, and minimal API surface.
 
 ## Architecture
 
@@ -11,9 +12,8 @@ GObject types, following the patterns from window_manager.
 lib/
 ├── desktop_shell.dart              # Main export
 └── src/
-    ├── api.dart                    # DesktopShell interface
-    ├── errors.dart                 # Error types
-    ├── platform_channel.dart       # Method channel wrapper
+    ├── api.dart                    # DesktopShell interface + initialize()
+    ├── errors.dart                 # Error types with Option<String> code
     └── menu/
         └── menu.dart               # Menu/MenuItem classes
 
@@ -83,18 +83,75 @@ linux/
 
 ### Step 3: CMakeLists.txt Configuration
 
-**Must include:**
+**Where `apply_standard_settings` is defined:**
+
+**File:** `flutter_tools/templates/app/linux.tmpl/CMakeLists.txt.tmpl`
+**Lines:** 42-47
 
 ```cmake
+function(APPLY_STANDARD_SETTINGS TARGET)
+  target_compile_features(${TARGET} PUBLIC cxx_std_14)
+  target_compile_options(${TARGET} PRIVATE -Wall -Werror)
+  target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
+  target_compile_definitions(${TARGET} PRIVATE
+    "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
+endfunction()
+```
+
+**What it does:**
+
+- Sets C++14 standard
+- Enables all warnings (`-Wall`)
+- Treats warnings as errors (`-Werror`)
+- Sets optimization to O3 for release builds
+- Defines NDEBUG for release builds
+
+**Availability:**
+
+- Function is defined in app's `linux/CMakeLists.txt`
+- Plugin CMakeLists.txt is subdirectory'd from app
+- Function available in parent scope
+- Standard Flutter plugin contract
+
+**Important:** This function only exists if the app was created with
+`flutter create --platforms=linux`. Manually created CMake files will lack it.
+
+**Plugin CMakeLists.txt:**
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+set(PROJECT_NAME "desktop_shell")
+project(${PROJECT_NAME} LANGUAGES CXX)
+
+# Flutter requires C++14
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(PLUGIN_NAME "${PROJECT_NAME}_plugin")
+
+add_library(${PLUGIN_NAME} SHARED
+  "desktop_shell_plugin.cc"
+  "tray/tray_manager.cc"
+  "window/window_manager.cc"
+)
+
 # Use Flutter's standard settings
 apply_standard_settings(${PLUGIN_NAME})
 
-# Disable deprecated warnings for appindicator
-target_compile_options(${PLUGIN_NAME} PRIVATE
-  -Wno-deprecated-declarations
+set_target_properties(${PLUGIN_NAME} PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
 )
 
-# Find appindicator
+target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
+
+target_include_directories(${PLUGIN_NAME} INTERFACE
+  "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+target_link_libraries(${PLUGIN_NAME} PRIVATE flutter)
+target_link_libraries(${PLUGIN_NAME} PRIVATE PkgConfig::GTK)
+
+# AppIndicator
+find_package(PkgConfig REQUIRED)
 pkg_check_modules(APPINDICATOR IMPORTED_TARGET ayatana-appindicator3-0.1)
 if(NOT APPINDICATOR_FOUND)
   pkg_check_modules(APPINDICATOR IMPORTED_TARGET appindicator3-0.1)
@@ -109,6 +166,11 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE
   flutter
   PkgConfig::APPINDICATOR
   PkgConfig::GTK
+)
+
+# Disable deprecated warnings for appindicator
+target_compile_options(${PLUGIN_NAME} PRIVATE
+  -Wno-deprecated-declarations
 )
 ```
 
@@ -264,6 +326,19 @@ static FlMethodResponse* handle_set_tray_icon(DesktopShellPlugin* self,
 // WRONG: missing return;  // DON'T DO THIS
 ```
 
+**Method name mapping (Dart -> Native):**
+
+| Dart Method | Native Method |
+| ----------- | ------------- |
+| `show()` | `show` |
+| `hide()` | `hide` |
+| `focus()` | `focus` |
+| `popUpTrayMenu()` | `popUpTrayMenu` |
+| `setTrayIcon()` | `setTrayIcon` |
+| `setTrayMenu()` | `setTrayMenu` |
+| `setPreventClose()` | `setPreventClose` |
+| `destroy()` | `destroy` |
+
 Implement handler for each method:
 
 ```cpp
@@ -280,12 +355,14 @@ static void method_call_cb(FlMethodChannel* channel,
     response = handle_set_tray_icon(self, args);
   } else if (strcmp(method, "setTrayMenu") == 0) {
     response = handle_set_tray_menu(self, args);
-  } else if (strcmp(method, "showWindow") == 0) {
-    response = handle_show_window(self);
-  } else if (strcmp(method, "hideWindow") == 0) {
-    response = handle_hide_window(self);
-  } else if (strcmp(method, "focusWindow") == 0) {
-    response = handle_focus_window(self);
+  } else if (strcmp(method, "popUpTrayMenu") == 0) {
+    response = handle_pop_up_tray_menu(self);
+  } else if (strcmp(method, "show") == 0) {
+    response = handle_show(self);
+  } else if (strcmp(method, "hide") == 0) {
+    response = handle_hide(self);
+  } else if (strcmp(method, "focus") == 0) {
+    response = handle_focus(self);
   } else if (strcmp(method, "setPreventClose") == 0) {
     response = handle_set_prevent_close(self, args);
   } else if (strcmp(method, "destroy") == 0) {
@@ -306,109 +383,97 @@ static void method_call_cb(FlMethodChannel* channel,
 **Direct SDK calls with explicit types - no wrappers:**
 
 ```dart
-import 'package:unwrap_me/unwrap_me.dart';
-import 'package:flutter/services.dart';
+import 'dart:async';
+import 'dart:io';
 
-/// The single platform channel for all operations.
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as path;
+import 'package:unwrap_me/unwrap_me.dart';
+
+import 'errors.dart';
+import 'menu/menu.dart';
+
 const _channel = MethodChannel('desktop_shell');
 
-/// Set tray icon. Returns Ok(()) on success, Err on failure.
-Future<Result<(), TrayIconError>> setTrayIcon(String iconPath) async {
-  try {
-    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
-      'setTrayIcon',
-      {'iconPath': iconPath},
-    );
-
-    if (result == null) {
-      return const Err(TrayIconError('Native returned null'));
-    }
-
-    if (result['success'] == true) {
-      return const Ok(());
-    }
-
-    return Err(TrayIconError(
-      result['message'] as String? ?? 'Unknown error',
-      code: Option.fromNullable(result['code'] as String?),
-    ));
-  } catch (e) {
-    return Err(TrayIconError(e.toString()));
+/// Initialize desktop shell with tray and window management.
+///
+/// All callbacks are required - no hidden defaults.
+/// setPreventClose is NOT called automatically - user decides when.
+Future<Result<DesktopShell, DesktopShellError>> initialize({
+  required String trayIcon,
+  required List<MenuItem> trayItems,
+  required void Function(DesktopShell shell) onWindowClose,
+  required void Function(DesktopShell shell) onTrayIconClick,
+  required void Function(DesktopShell shell, MenuItem item) onTrayMenuItemClick,
+}) async {
+  // Check platform support
+  if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
+    return const Err(UnsupportedPlatformError('unsupported'));
   }
+
+  // Create shell instance
+  final shell = _DesktopShellImpl(
+    onWindowClose: onWindowClose,
+    onTrayIconClick: onTrayIconClick,
+    onTrayMenuItemClick: onTrayMenuItemClick,
+  );
+
+  // Register handler for native events
+  _channel.setMethodCallHandler((call) async {
+    await shell._dispatchNativeEvent(call);
+  });
+
+  // Initialize tray icon
+  final iconResult = await shell.setTrayIcon(trayIcon);
+  if (iconResult case Err(:final error)) {
+    return Err(error);
+  }
+
+  // Initialize tray menu
+  final menuResult = await shell.setTrayMenu(trayItems);
+  if (menuResult case Err(:final error)) {
+    return Err(error);
+  }
+
+  return Ok(shell);
 }
 
-/// Show window. Returns Ok(()) on success, Err on failure.
-Future<Result<(), WindowShowError>> showWindow() async {
-  try {
-    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
-      'showWindow',
-    );
-
-    if (result == null) {
-      return const Err(WindowShowError('Native returned null'));
-    }
-
-    if (result['success'] == true) {
-      return const Ok(());
-    }
-
-    return Err(WindowShowError(
-      result['message'] as String? ?? 'Unknown error',
-      code: Option.fromNullable(result['code'] as String?),
-    ));
-  } catch (e) {
-    return Err(WindowShowError(e.toString()));
-  }
+/// Main desktop shell controller interface.
+abstract class DesktopShell {
+  Future<Result<(), TrayIconError>> setTrayIcon(String iconPath);
+  Future<Result<(), TrayMenuError>> setTrayMenu(List<MenuItem> items);
+  Future<Result<(), TrayPopupError>> popUpTrayMenu();
+  Future<Result<(), WindowShowError>> show();
+  Future<Result<(), WindowHideError>> hide();
+  Future<Result<(), WindowFocusError>> focus();
+  Future<Result<(), WindowPreventCloseError>> setPreventClose(bool prevent);
+  Future<Result<(), ShellDestroyError>> destroy();
 }
+```
 
-/// Set tray context menu.
-Future<Result<(), TrayMenuError>> setTrayMenu(List<MenuItem> items) async {
-  try {
-    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
-      'setTrayMenu',
-      {
-        'menu': items.map((i) => i.toJson()).toList(),
-      },
-    );
+**Key design decisions:**
 
-    if (result == null) {
-      return const Err(TrayMenuError('Native returned null'));
-    }
+1. **Simplified names:** `show` not `showWindow` (single window implied)
+2. **Required callbacks:** All three callbacks required, no nullable
+3. **No forced setPreventClose:** User must call explicitly if needed
+4. **Direct SDK calls:** No wrapper functions, direct invokeMethod
+5. **Map-based responses:** Native returns Map with success/message/code
 
-    if (result['success'] == true) {
-      return const Ok(());
-    }
+**Event handling (Native -> Dart):**
 
-    return Err(TrayMenuError(
-      result['message'] as String? ?? 'Unknown error',
-      code: Option.fromNullable(result['code'] as String?),
-    ));
-  } catch (e) {
-    return Err(TrayMenuError(e.toString()));
-  }
-}
-
-/// Show context menu (Linux: no-op, automatic on click).
-Future<Result<(), TrayError>> popUpContextMenu() async {
-  try {
-    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
-      'popUpContextMenu',
-    );
-
-    if (result == null) {
-      return const Err(TrayError('Native returned null'));
-    }
-
-    if (result['success'] == true) {
-      return const Ok(());
-    }
-
-    return Err(TrayError(
-      result['message'] as String? ?? 'Unknown error',
-      code: Option.fromNullable(result['code'] as String?),
-    ));
-  } catch (e) {
-    return Err(TrayError(e.toString()));
+```dart
+Future<void> _dispatchNativeEvent(MethodCall call) async {
+  switch (call.method) {
+    case 'onWindowClose':
+      onWindowClose(this);
+    case 'onTrayIconClick':
+      onTrayIconClick(this);
+    case 'onTrayMenuItemClick':
+      final key = call.arguments['key'] as String;
+      final item = _findMenuItemByKey(_currentMenu!.items, key);
+      if (item != null) {
+        onTrayMenuItemClick(this, item);
+      }
   }
 }
 ```
@@ -426,262 +491,147 @@ sealed class DesktopShellError {
   String get message;
 }
 
-/// Tray-related errors.
-sealed class TrayError extends DesktopShellError {
-  const TrayError();
-}
-
-final class TrayIconError extends TrayError {
+final class TrayIconError extends DesktopShellError {
   final String details;
   final Option<String> code;
-
-  const TrayIconError(
-    this.details, {
-    this.code = const None(),
-  });
-
+  const TrayIconError(this.details, {this.code = const None()});
   @override
-  String get message => '[$code] Failed to set tray icon: $details';
+  String get message => 'Tray icon error: $details';
 }
 
-final class TrayMenuError extends TrayError {
+final class TrayMenuError extends DesktopShellError {
   final String details;
   final Option<String> code;
-
-  const TrayMenuError(
-    this.details, {
-    this.code = const None(),
-  });
-
+  const TrayMenuError(this.details, {this.code = const None()});
   @override
-  String get message => '[$code] Failed to set tray menu: $details';
+  String get message => 'Tray menu error: $details';
 }
 
-/// Window operation errors.
-sealed class WindowOperationError extends DesktopShellError {
-  const WindowOperationError();
-}
-
-final class WindowShowError extends WindowOperationError {
+final class TrayPopupError extends DesktopShellError {
   final String details;
   final Option<String> code;
-
-  const WindowShowError(
-    this.details, {
-    this.code = const None(),
-  });
-
+  const TrayPopupError(this.details, {this.code = const None()});
   @override
-  String get message => '[$code] Failed to show window: $details';
+  String get message => 'Tray popup error: $details';
 }
 
-final class WindowHideError extends WindowOperationError {
+final class WindowShowError extends DesktopShellError {
   final String details;
   final Option<String> code;
-
-  const WindowHideError(
-    this.details, {
-    this.code = const None(),
-  });
-
+  const WindowShowError(this.details, {this.code = const None()});
   @override
-  String get message => '[$code] Failed to hide window: $details';
+  String get message => 'Window show error: $details';
 }
 
-final class WindowInitError extends WindowOperationError {
+final class WindowHideError extends DesktopShellError {
   final String details;
   final Option<String> code;
-
-  const WindowInitError(
-    this.details, {
-    this.code = const None(),
-  });
-
+  const WindowHideError(this.details, {this.code = const None()});
   @override
-  String get message => '[$code] Window initialization failed: $details';
+  String get message => 'Window hide error: $details';
+}
+
+final class WindowFocusError extends DesktopShellError {
+  final String details;
+  final Option<String> code;
+  const WindowFocusError(this.details, {this.code = const None()});
+  @override
+  String get message => 'Window focus error: $details';
+}
+
+final class WindowPreventCloseError extends DesktopShellError {
+  final String details;
+  final Option<String> code;
+  const WindowPreventCloseError(this.details, {this.code = const None()});
+  @override
+  String get message => 'Prevent close error: $details';
+}
+
+final class ShellDestroyError extends DesktopShellError {
+  final String details;
+  final Option<String> code;
+  const ShellDestroyError(this.details, {this.code = const None()});
+  @override
+  String get message => 'Destroy error: $details';
+}
+
+final class TrayInitError extends DesktopShellError {
+  final String details;
+  const TrayInitError(this.details);
+  @override
+  String get message => 'Tray init error: $details';
+}
+
+final class WindowInitError extends DesktopShellError {
+  final String details;
+  const WindowInitError(this.details);
+  @override
+  String get message => 'Window init error: $details';
+}
+
+final class UnsupportedPlatformError extends DesktopShellError {
+  final String details;
+  const UnsupportedPlatformError(this.details);
+  @override
+  String get message => 'Unsupported platform: $details';
 }
 ```
 
-**File:** `lib/src/api.dart`
+### Step 9: Menu Types
+
+**File:** `lib/src/menu/menu.dart`
 
 ```dart
-import 'package:unwrap_me/unwrap_me.dart';
+/// A menu item for the system tray context menu.
+final class MenuItem {
+  final String key;
+  final String label;
+  final bool isSeparator;
+  final bool checked;
 
-/// Main desktop shell controller.
-///
-/// All operations return [Result] for explicit error handling.
-abstract class DesktopShell {
-  /// Set tray icon from path.
-  /// Returns [Ok(())] on success, [Err(TrayIconError)] on failure.
-  Future<Result<(), TrayIconError>> setTrayIcon(String iconPath);
-  
-  /// Set tray context menu.
-  Future<Result<(), TrayMenuError>> setTrayMenu(List<MenuItem> items);
-  
-  /// Show context menu (Linux: no-op, automatic on click).
-  Future<Result<(), TrayError>> popUpContextMenu();
-  
-  /// Show window from tray.
-  Future<Result<(), WindowShowError>> showWindow();
-  
-  /// Hide window to tray.
-  Future<Result<(), WindowHideError>> hideWindow();
-  
-  /// Focus window.
-  Future<Result<(), WindowOperationError>> focusWindow();
-  
-  /// Set prevent close flag.
-  Future<Result<(), WindowOperationError>> setPreventClose(bool prevent);
+  const MenuItem({
+    required this.key,
+    required this.label,
+    this.checked = false,
+  }) : isSeparator = false;
 
-  /// Cleanup and destroy resources.
-  Future<Result<(), DesktopShellError>> destroy();
+  const MenuItem.separator()
+      : key = '',
+        label = '',
+        isSeparator = true,
+        checked = false;
+
+  Map<String, dynamic> toJson() => {
+        'id': key.hashCode,
+        'key': key,
+        'label': label,
+        'type': isSeparator ? 'separator' : (checked ? 'checkbox' : 'normal'),
+        'checked': checked,
+      };
 }
 
-### Events (Callbacks)
+/// A menu containing multiple menu items.
+final class Menu {
+  final List<MenuItem> items;
 
-**File:** `lib/src/api.dart`
+  const Menu({required this.items});
 
-Events are handled via callbacks passed to `initialize()`:
+  List<Map<String, dynamic>> toJson() =>
+      items.map((item) => item.toJson()).toList();
 
-```dart
-Future<Result<DesktopShell, DesktopShellError>> initialize({
-  required String trayIcon,
-  required List<MenuItem> trayItems,
-  required void Function(DesktopShell shell) onWindowClose,
-  void Function(DesktopShell shell)? onTrayIconClick,
-  void Function(DesktopShell shell, MenuItem item)? onTrayMenuItemClick,
-}) async {
-  // ... setup ...
-  
-  // Set up method call handler for events from native
-  _channel.setMethodCallHandler((call) async {
-    switch (call.method) {
-      case 'onWindowClose':
-        onWindowClose(shell);
-      case 'onTrayIconClick':
-        onTrayIconClick?.call(shell);
-      case 'onTrayMenuItemClick':
-        final key = call.arguments['key'] as String;
-        final item = _findMenuItemByKey(key);
-        onTrayMenuItemClick?.call(shell, item);
+  MenuItem? getMenuItemById(int id) {
+    for (final item in items) {
+      if (item.key.hashCode == id) return item;
     }
-  });
-  
-  // ... rest of initialization ...
-}
-```
-
-**Event Descriptions:**
-
-| Event | Trigger | Common Use |
-| ----- | ------- | ---------- |
-| `onWindowClose` | User clicks window close button | Hide to tray instead of quitting |
-| `onTrayIconClick` | User clicks tray icon | Show menu (Windows/macOS) |
-| `onTrayMenuItemClick` | User selects menu item | Handle menu actions |
-
-**Usage Example:**
-
-```dart
-final result = await initialize(
-  trayIcon: 'assets/icon.png',
-  trayItems: [
-    MenuItem(key: 'show', label: 'Show Window'),
-    MenuItem.separator(),
-    MenuItem(key: 'quit', label: 'Quit'),
-  ],
-  onWindowClose: (shell) async {
-    // Intercept close - hide to tray instead
-    await shell.hideWindow();
-  },
-  onTrayIconClick: (shell) async {
-    // Windows/macOS: show menu on click
-    if (!Platform.isLinux) {
-      await shell.popUpContextMenu();
-    }
-  },
-  onTrayMenuItemClick: (shell, item) async {
-    switch (item.key) {
-      case 'show':
-        await shell.showWindow();
-        await shell.focusWindow();
-      case 'quit':
-        await shell.destroy();
-        exit(0);
-    }
-  },
-);
-```
-
-**Why Callback Pattern:**
-
-- Simple - single function per event
-- No listener management (add/remove)
-- Set once at initialization
-- Functional style matches Result pattern
-
-## Platform-Specific Behavior
-
-  MenuItem.separator(),
-  MenuItem(key: 'quit', label: 'Quit'),
-]);
-
-menuResult.map((_) => print('Menu set successfully'));
-
-```
-
-## Platform-Specific Behavior
-
-### `popUpContextMenu()` - Menu Display
-
-**Platform Differences:**
-
-| Platform | Mechanism | User Action Required |
-| -------- | ----------- | -------------------- |
-| **Linux** | Automatic | None - menu appears on icon click |
-| **Windows** | `TrackPopupMenu(hMenu, x, y)` | Must call in `onTrayIconClick` handler |
-| **macOS** | `performClick()` on statusItem | Must call in `onTrayIconClick` handler |
-
-**Why Different:**
-
-- **Linux (AppIndicator):** System handles click, automatically shows menu set
-  via `setTrayMenu()`. No API exists to programmatically trigger menu.
-
-- **Windows:** Requires explicit `TrackPopupMenu()` call with coordinates.
-  Windows API: `TrackPopupMenu(hMenu, flags, x, y, reserved, hWnd, rect)`
-
-- **macOS:** Requires `performClick()` on statusItem button. Indirect - tells
-  system "simulate user click", system then shows attached menu.
-
-**Implementation Strategy:**
-
-```dart
-// Same API on all platforms
-Future<Result<(), TrayError>> popUpContextMenu();
-
-// Linux: returns Ok(()) immediately (no-op)
-// Windows: calls TrackPopupMenu
-// macOS: calls performClick
-```
-
-**User Code Pattern:**
-
-```dart
-void onTrayIconClick() async {
-  if (!Platform.isLinux) {
-    await shell.popUpContextMenu();
+    return null;
   }
-  // Linux: menu appears automatically
 }
 ```
 
-### Summary
+**No per-item onClick.** All menu clicks handled by global `onTrayMenuItemClick`
+in `initialize()`.
 
-All platforms expose identical Dart API, but internal implementation differs:
-
-- Linux: System-controlled menu display
-- Windows/macOS: Programmatic menu display
-
-### Step 9: Example App
+### Step 10: Example App
 
 **File:** `example/lib/main.dart`
 
@@ -691,8 +641,59 @@ All platforms expose identical Dart API, but internal implementation differs:
 - Handle window close by hiding to tray
 - Tray menu items: Show Window, Quit
 - UI buttons: Show, Hide, Focus, Quit
+- Call setPreventClose explicitly after initialization
 
-### Step 10: Build and Test
+**Example:**
+
+```dart
+import 'dart:io';
+import 'package:desktop_shell/desktop_shell.dart';
+import 'package:unwrap_me/unwrap_me.dart';
+
+void main() async {
+  final result = await initialize(
+    trayIcon: 'assets/icon.png',
+    trayItems: [
+      MenuItem(key: 'show', label: 'Show Window'),
+      MenuItem.separator(),
+      MenuItem(key: 'quit', label: 'Quit'),
+    ],
+    onWindowClose: (shell) async {
+      // Hide to tray instead of closing
+      await shell.hide();
+    },
+    onTrayIconClick: (shell) async {
+      // Linux: menu appears automatically
+      // Windows/macOS: call popUpTrayMenu here
+    },
+    onTrayMenuItemClick: (shell, item) async {
+      switch (item.key) {
+        case 'show':
+          await shell.show();
+          await shell.focus();
+        case 'quit':
+          await shell.destroy();
+          exit(0);
+      }
+    },
+  );
+
+  switch (result) {
+    case Ok(:final value):
+      final shell = value;
+      
+      // User decides when to prevent close
+      await shell.setPreventClose(true);
+      
+      runApp(MyApp(shell: shell));
+    case Err(:final error):
+      stderr.writeln('Failed to initialize: ${error.message}');
+      exit(1);
+  }
+}
+```
+
+### Step 11: Build and Test
 
 **Commands:**
 
@@ -713,7 +714,7 @@ flutter run -d linux
 - [ ] Hide to Tray button works
 - [ ] Show Window button works
 - [ ] Focus Window button works
-- [ ] Window close button hides to tray
+- [ ] Window close button hides to tray (after setPreventClose)
 - [ ] No crashes on exit
 
 ## Common Issues and Solutions
@@ -748,6 +749,56 @@ flutter run -d linux
 **Cause:** Delete event handler not connected or returning wrong value
 
 **Solution:** Connect in constructor, return TRUE to prevent close
+
+## Platform-Specific Behavior
+
+### `popUpTrayMenu()` - Menu Display
+
+**Platform Differences:**
+
+| Platform | Mechanism | User Action Required |
+| -------- | ----------- | -------------------- |
+| **Linux** | Automatic | None - menu appears on icon click |
+| **Windows** | `TrackPopupMenu(hMenu, x, y)` | Must call in `onTrayIconClick` handler |
+| **macOS** | `performClick()` on statusItem | Must call in `onTrayIconClick` handler |
+
+**Why Different:**
+
+- **Linux (AppIndicator):** System handles click, automatically shows menu set
+  via `setTrayMenu()`. No API exists to programmatically trigger menu.
+
+- **Windows:** Requires explicit `TrackPopupMenu()` call with coordinates.
+  Windows API: `TrackPopupMenu(hMenu, flags, x, y, reserved, hWnd, rect)`
+
+- **macOS:** Requires `performClick()` on statusItem button. Indirect - tells
+  system "simulate user click", system then shows attached menu.
+
+**Implementation Strategy:**
+
+```dart
+// Same API on all platforms
+Future<Result<(), TrayError>> popUpTrayMenu();
+
+// Linux: returns Ok(()) immediately (no-op)
+// Windows: calls TrackPopupMenu
+// macOS: calls performClick
+```
+
+**User Code Pattern:**
+
+```dart
+void onTrayIconClick() async {
+  // Call on all platforms - Linux returns immediately (no-op)
+  await shell.popUpTrayMenu();
+}
+```
+
+### Summary
+
+All platforms expose identical Dart API, but internal implementation differs:
+
+- Linux: System-controlled menu display
+- Windows/macOS: Programmatic menu display
 
 ## References
 

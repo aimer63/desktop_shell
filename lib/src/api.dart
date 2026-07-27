@@ -3,44 +3,24 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
-import 'package:shortid/shortid.dart';
 import 'package:unwrap_me/unwrap_me.dart';
 
 import 'errors.dart';
 import 'menu/menu.dart';
-import 'platform_channel.dart';
+
+/// The single platform channel for all operations.
+const _channel = MethodChannel('desktop_shell');
 
 /// Initialize desktop shell with tray and window management.
 ///
 /// Returns a [Result] containing [DesktopShell] instance on success,
 /// or [DesktopShellError] on failure.
-///
-/// Example:
-/// ```dart
-/// final result = await initialize(
-///   trayIcon: Platform.isWindows ? 'assets/icon.ico' : 'assets/icon.png',
-///   trayItems: [
-///     MenuItem(key: 'show', label: 'Open'),
-///     MenuItem.separator(),
-///     MenuItem(key: 'quit', label: 'Quit'),
-///   ],
-///   onWindowClose: (shell) => shell.hideWindow(),
-///   onTrayIconClick: (shell) => shell.popUpContextMenu(),
-/// );
-///
-/// switch (result) {
-///   case Ok(:final value):
-///     runApp(MyApp(shell: value));
-///   case Err(:final error):
-///     stderr.writeln('Failed to initialize: ${error.message}');
-///     exit(1);
-/// }
-/// ```
 Future<Result<DesktopShell, DesktopShellError>> initialize({
   required String trayIcon,
   required List<MenuItem> trayItems,
   required void Function(DesktopShell shell) onWindowClose,
-  void Function(DesktopShell shell)? onTrayIconClick,
+  required void Function(DesktopShell shell) onTrayIconClick,
+  required void Function(DesktopShell shell, MenuItem item) onTrayMenuItemClick,
 }) async {
   // Check platform support
   if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
@@ -51,29 +31,24 @@ Future<Result<DesktopShell, DesktopShellError>> initialize({
   final shell = _DesktopShellImpl(
     onWindowClose: onWindowClose,
     onTrayIconClick: onTrayIconClick,
+    onTrayMenuItemClick: onTrayMenuItemClick,
   );
 
-  // Set up method call handler for events from native
-  setMethodCallHandler((call) async {
-    await shell._handleMethodCall(call);
+  // Register handler for native events
+  _channel.setMethodCallHandler((call) async {
+    await shell._dispatchNativeEvent(call);
   });
 
   // Initialize tray icon
-  final iconResult = await shell._initializeTray(trayIcon);
+  final iconResult = await shell.setTrayIcon(trayIcon);
   if (iconResult case Err(:final error)) {
-    return Err(TrayInitError(error.message));
+    return Err(error);
   }
 
   // Initialize tray menu
-  final menuResult = await shell._setTrayMenu(trayItems);
+  final menuResult = await shell.setTrayMenu(trayItems);
   if (menuResult case Err(:final error)) {
-    return Err(TrayInitError(error.message));
-  }
-
-  // Initialize window management (prevent close)
-  final windowResult = await shell.setPreventClose(true);
-  if (windowResult case Err(:final error)) {
-    return Err(WindowInitError(error.message));
+    return Err(error);
   }
 
   return Ok(shell);
@@ -83,60 +58,76 @@ Future<Result<DesktopShell, DesktopShellError>> initialize({
 ///
 /// All operations return [Result] for explicit error handling.
 abstract class DesktopShell {
-  /// Set the tray icon.
-  Future<Result<(), TrayError>> setTrayIcon(String iconPath);
+  /// Set tray icon from path.
+  Future<Result<(), TrayIconError>> setTrayIcon(String iconPath);
 
-  /// Set the tray context menu.
-  Future<Result<(), TrayError>> setTrayMenu(List<MenuItem> items);
+  /// Set tray context menu.
+  Future<Result<(), TrayMenuError>> setTrayMenu(List<MenuItem> items);
 
-  /// Show the tray context menu.
-  Future<Result<(), TrayError>> popUpContextMenu();
+  /// Show context menu (Linux: no-op, automatic on click).
+  Future<Result<(), TrayPopupError>> popUpTrayMenu();
 
   /// Show window from tray.
-  Future<Result<(), WindowOperationError>> showWindow();
+  Future<Result<(), WindowShowError>> show();
 
   /// Hide window to tray.
-  Future<Result<(), WindowOperationError>> hideWindow();
+  Future<Result<(), WindowHideError>> hide();
 
   /// Focus window.
-  Future<Result<(), WindowOperationError>> focusWindow();
+  Future<Result<(), WindowFocusError>> focus();
 
-  /// Set whether to prevent window close (intercept close button).
-  Future<Result<(), WindowOperationError>> setPreventClose(bool prevent);
+  /// Set prevent close flag.
+  Future<Result<(), WindowPreventCloseError>> setPreventClose(bool prevent);
 
-  /// Destroy tray icon and window resources.
-  Future<Result<(), DesktopShellError>> destroy();
+  /// Cleanup and destroy resources.
+  Future<Result<(), ShellDestroyError>> destroy();
 }
 
 /// Implementation of [DesktopShell].
 final class _DesktopShellImpl implements DesktopShell {
   final void Function(DesktopShell shell) onWindowClose;
-  final void Function(DesktopShell shell)? onTrayIconClick;
+  final void Function(DesktopShell shell) onTrayIconClick;
+  final void Function(DesktopShell shell, MenuItem item) onTrayMenuItemClick;
 
   Menu? _currentMenu;
   bool _isDestroyed = false;
 
   _DesktopShellImpl({
     required this.onWindowClose,
-    this.onTrayIconClick,
+    required this.onTrayIconClick,
+    required this.onTrayMenuItemClick,
   });
 
-  Future<void> _handleMethodCall(MethodCall call) async {
+  Future<void> _dispatchNativeEvent(MethodCall call) async {
     switch (call.method) {
       case 'onWindowClose':
         onWindowClose(this);
       case 'onTrayIconClick':
-        onTrayIconClick?.call(this);
+        onTrayIconClick(this);
       case 'onTrayMenuItemClick':
-        final id = call.arguments['id'] as int;
-        final menuItem = _currentMenu?.getMenuItemById(id);
-        if (menuItem?.onClick != null) {
-          menuItem!.onClick!(menuItem);
+        final key = call.arguments['key'] as String;
+        final item = _findMenuItemByKey(_currentMenu!.items, key);
+        if (item != null) {
+          onTrayMenuItemClick(this, item);
         }
     }
   }
 
-  Future<Result<(), TrayIconError>> _initializeTray(String iconPath) async {
+  MenuItem? _findMenuItemByKey(List<MenuItem> items, String key) {
+    for (final item in items) {
+      if (item.key == key) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<Result<(), TrayIconError>> setTrayIcon(String iconPath) async {
+    if (_isDestroyed) {
+      return const Err(TrayIconError('Shell has been destroyed'));
+    }
+
     try {
       final resolvedPath = path.joinAll([
         path.dirname(Platform.resolvedExecutable),
@@ -144,136 +135,179 @@ final class _DesktopShellImpl implements DesktopShell {
         iconPath,
       ]);
 
-      final arguments = <String, dynamic>{
-        'id': shortid.generate(),
-        'iconPath': resolvedPath,
-      };
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'setTrayIcon',
+        {'iconPath': resolvedPath},
+      );
 
-      // Platform-specific handling
-      if (Platform.isLinux) {
-        // Linux sandbox handling
-        arguments['iconPath'] = iconPath;
+      if (result == null) {
+        return const Err(TrayIconError('Native returned null'));
       }
 
-      final result = await invokeMethodWithResult('setTrayIcon', arguments);
-
-      if (result != null && result['error'] == true) {
-        return Err(TrayIconError(result['message'] as String));
+      if (result['success'] == true) {
+        return const Ok(());
       }
 
-      return const Ok(());
+      return Err(
+        TrayIconError(
+          result['message'] as String? ?? 'Unknown error',
+          code: Option.fromNullable(result['code'] as String?),
+        ),
+      );
     } catch (e) {
       return Err(TrayIconError(e.toString()));
     }
   }
 
   @override
-  Future<Result<(), TrayError>> setTrayIcon(String iconPath) async {
+  Future<Result<(), TrayMenuError>> setTrayMenu(List<MenuItem> items) async {
     if (_isDestroyed) {
-      return const Err(TrayIconError('Shell has been destroyed'));
+      return const Err(TrayMenuError('Shell has been destroyed'));
     }
-    return _initializeTray(iconPath);
-  }
 
-  Future<Result<(), TrayMenuError>> _setTrayMenu(List<MenuItem> items) async {
     try {
       _currentMenu = Menu(items: items);
 
-      final arguments = <String, dynamic>{
-        'menu': _currentMenu!.toJson(),
-      };
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'setTrayMenu',
+        {'menu': _currentMenu!.toJson()},
+      );
 
-      final result = await invokeMethodWithResult('setTrayMenu', arguments);
-
-      if (result != null && result['error'] == true) {
-        return Err(TrayMenuError(result['message'] as String));
+      if (result == null) {
+        return const Err(TrayMenuError('Native returned null'));
       }
 
-      return const Ok(());
+      if (result['success'] == true) {
+        return const Ok(());
+      }
+
+      return Err(
+        TrayMenuError(
+          result['message'] as String? ?? 'Unknown error',
+          code: Option.fromNullable(result['code'] as String?),
+        ),
+      );
     } catch (e) {
       return Err(TrayMenuError(e.toString()));
     }
   }
 
   @override
-  Future<Result<(), TrayError>> setTrayMenu(List<MenuItem> items) async {
-    if (_isDestroyed) {
-      return const Err(TrayMenuError('Shell has been destroyed'));
-    }
-    return _setTrayMenu(items);
-  }
-
-  @override
-  Future<Result<(), TrayError>> popUpContextMenu() async {
+  Future<Result<(), TrayPopupError>> popUpTrayMenu() async {
     if (_isDestroyed) {
       return const Err(TrayPopupError('Shell has been destroyed'));
     }
 
-    try {
-      final result = await invokeMethodWithResult('popUpContextMenu');
+    // Linux: no-op, menu appears automatically on tray icon click
+    if (Platform.isLinux) {
+      return const Ok(());
+    }
 
-      if (result != null && result['error'] == true) {
-        return Err(TrayPopupError(result['message'] as String));
+    try {
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'popUpTrayMenu',
+      );
+
+      if (result == null) {
+        return const Err(TrayPopupError('Native returned null'));
       }
 
-      return const Ok(());
+      if (result['success'] == true) {
+        return const Ok(());
+      }
+
+      return Err(
+        TrayPopupError(
+          result['message'] as String? ?? 'Unknown error',
+          code: Option.fromNullable(result['code'] as String?),
+        ),
+      );
     } catch (e) {
       return Err(TrayPopupError(e.toString()));
     }
   }
 
   @override
-  Future<Result<(), WindowShowError>> showWindow() async {
+  Future<Result<(), WindowShowError>> show() async {
     if (_isDestroyed) {
       return const Err(WindowShowError('Shell has been destroyed'));
     }
 
     try {
-      final result = await invokeMethodWithResult('showWindow');
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>('show');
 
-      if (result != null && result['error'] == true) {
-        return Err(WindowShowError(result['message'] as String));
+      if (result == null) {
+        return const Err(WindowShowError('Native returned null'));
       }
 
-      return const Ok(());
+      if (result['success'] == true) {
+        return const Ok(());
+      }
+
+      return Err(
+        WindowShowError(
+          result['message'] as String? ?? 'Unknown error',
+          code: Option.fromNullable(result['code'] as String?),
+        ),
+      );
     } catch (e) {
       return Err(WindowShowError(e.toString()));
     }
   }
 
   @override
-  Future<Result<(), WindowHideError>> hideWindow() async {
+  Future<Result<(), WindowHideError>> hide() async {
     if (_isDestroyed) {
       return const Err(WindowHideError('Shell has been destroyed'));
     }
 
     try {
-      final result = await invokeMethodWithResult('hideWindow');
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>('hide');
 
-      if (result != null && result['error'] == true) {
-        return Err(WindowHideError(result['message'] as String));
+      if (result == null) {
+        return const Err(WindowHideError('Native returned null'));
       }
 
-      return const Ok(());
+      if (result['success'] == true) {
+        return const Ok(());
+      }
+
+      return Err(
+        WindowHideError(
+          result['message'] as String? ?? 'Unknown error',
+          code: Option.fromNullable(result['code'] as String?),
+        ),
+      );
     } catch (e) {
       return Err(WindowHideError(e.toString()));
     }
   }
 
   @override
-  Future<Result<(), WindowFocusError>> focusWindow() async {
+  Future<Result<(), WindowFocusError>> focus() async {
     if (_isDestroyed) {
       return const Err(WindowFocusError('Shell has been destroyed'));
     }
 
     try {
-      final result = await invokeMethodWithResult('focusWindow');
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'focus',
+      );
 
-      if (result != null && result['error'] == true) {
-        return Err(WindowFocusError(result['message'] as String));
+      if (result == null) {
+        return const Err(WindowFocusError('Native returned null'));
       }
 
-      return const Ok(());
+      if (result['success'] == true) {
+        return const Ok(());
+      }
+
+      return Err(
+        WindowFocusError(
+          result['message'] as String? ?? 'Unknown error',
+          code: Option.fromNullable(result['code'] as String?),
+        ),
+      );
     } catch (e) {
       return Err(WindowFocusError(e.toString()));
     }
@@ -288,20 +322,25 @@ final class _DesktopShellImpl implements DesktopShell {
     }
 
     try {
-      final arguments = <String, dynamic>{
-        'prevent': prevent,
-      };
-
-      final result = await invokeMethodWithResult(
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
         'setPreventClose',
-        arguments,
+        {'prevent': prevent},
       );
 
-      if (result != null && result['error'] == true) {
-        return Err(WindowPreventCloseError(result['message'] as String));
+      if (result == null) {
+        return const Err(WindowPreventCloseError('Native returned null'));
       }
 
-      return const Ok(());
+      if (result['success'] == true) {
+        return const Ok(());
+      }
+
+      return Err(
+        WindowPreventCloseError(
+          result['message'] as String? ?? 'Unknown error',
+          code: Option.fromNullable(result['code'] as String?),
+        ),
+      );
     } catch (e) {
       return Err(WindowPreventCloseError(e.toString()));
     }
@@ -314,16 +353,27 @@ final class _DesktopShellImpl implements DesktopShell {
     }
 
     try {
-      final result = await invokeMethodWithResult('destroy');
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'destroy',
+      );
 
       _isDestroyed = true;
-      setMethodCallHandler(null);
+      _channel.setMethodCallHandler(null);
 
-      if (result != null && result['error'] == true) {
-        return Err(ShellDestroyError(result['message'] as String));
+      if (result == null) {
+        return const Err(ShellDestroyError('Native returned null'));
       }
 
-      return const Ok(());
+      if (result['success'] == true) {
+        return const Ok(());
+      }
+
+      return Err(
+        ShellDestroyError(
+          result['message'] as String? ?? 'Unknown error',
+          code: Option.fromNullable(result['code'] as String?),
+        ),
+      );
     } catch (e) {
       return Err(ShellDestroyError(e.toString()));
     }

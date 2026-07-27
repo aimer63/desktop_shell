@@ -1,3 +1,5 @@
+import 'package:unwrap_me/unwrap_me.dart';
+
 /// Base error type for all desktop_shell errors.
 sealed class DesktopShellError {
   const DesktopShellError();
@@ -7,24 +9,35 @@ sealed class DesktopShellError {
 /// Failed to initialize tray icon.
 final class TrayInitError extends DesktopShellError {
   final String details;
-  const TrayInitError(this.details);
+  final Option<String> code;
+
+  const TrayInitError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Tray initialization failed: $details';
+  String get message => '[$code] Tray initialization failed: $details';
 }
 
 /// Failed to initialize window management.
 final class WindowInitError extends DesktopShellError {
   final String details;
-  const WindowInitError(this.details);
+  final Option<String> code;
+
+  const WindowInitError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Window initialization failed: $details';
+  String get message => '[$code] Window initialization failed: $details';
 }
 
 /// Platform is not supported.
 final class UnsupportedPlatformError extends DesktopShellError {
   final String platform;
+
   const UnsupportedPlatformError(this.platform);
 
   @override
@@ -39,28 +52,43 @@ sealed class TrayError extends DesktopShellError {
 /// Failed to set tray icon.
 final class TrayIconError extends TrayError {
   final String details;
-  const TrayIconError(this.details);
+  final Option<String> code;
+
+  const TrayIconError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Failed to set tray icon: $details';
+  String get message => '[$code] Failed to set tray icon: $details';
 }
 
 /// Failed to set tray menu.
 final class TrayMenuError extends TrayError {
   final String details;
-  const TrayMenuError(this.details);
+  final Option<String> code;
+
+  const TrayMenuError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Failed to set tray menu: $details';
+  String get message => '[$code] Failed to set tray menu: $details';
 }
 
 /// Failed to show tray context menu.
 final class TrayPopupError extends TrayError {
   final String details;
-  const TrayPopupError(this.details);
+  final Option<String> code;
+
+  const TrayPopupError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Failed to show tray context menu: $details';
+  String get message => '[$code] Failed to show tray context menu: $details';
 }
 
 /// Window operation failed.
@@ -71,44 +99,69 @@ sealed class WindowOperationError extends DesktopShellError {
 /// Failed to show window.
 final class WindowShowError extends WindowOperationError {
   final String details;
-  const WindowShowError(this.details);
+  final Option<String> code;
+
+  const WindowShowError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Failed to show window: $details';
+  String get message => '[$code] Failed to show window: $details';
 }
 
 /// Failed to hide window.
 final class WindowHideError extends WindowOperationError {
   final String details;
-  const WindowHideError(this.details);
+  final Option<String> code;
+
+  const WindowHideError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Failed to hide window: $details';
+  String get message => '[$code] Failed to hide window: $details';
 }
 
 /// Failed to focus window.
 final class WindowFocusError extends WindowOperationError {
   final String details;
-  const WindowFocusError(this.details);
+  final Option<String> code;
+
+  const WindowFocusError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Failed to focus window: $details';
+  String get message => '[$code] Failed to focus window: $details';
 }
 
 /// Failed to set prevent close.
 final class WindowPreventCloseError extends WindowOperationError {
   final String details;
-  const WindowPreventCloseError(this.details);
+  final Option<String> code;
+
+  const WindowPreventCloseError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Failed to set prevent close: $details';
+  String get message => '[$code] Failed to set prevent close: $details';
 }
 
 /// Failed to destroy resources.
 final class ShellDestroyError extends DesktopShellError {
   final String details;
-  const ShellDestroyError(this.details);
+  final Option<String> code;
+
+  const ShellDestroyError(
+    this.details, {
+    this.code = const None(),
+  });
 
   @override
-  String get message => 'Failed to destroy resources: $details';
+  String get message => '[$code] Failed to destroy resources: $details';
 }

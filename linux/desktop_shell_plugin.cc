@@ -48,113 +48,141 @@ static void desktop_shell_plugin_dispose(GObject* object) {
   G_OBJECT_CLASS(desktop_shell_plugin_parent_class)->dispose(object);
 }
 
-static FlMethodResponse* send_error_response(const gchar* message) {
-  g_autoptr(FlValue) error_map = fl_value_new_map();
-  fl_value_set_string_take(error_map, "error", fl_value_new_bool(true));
-  fl_value_set_string_take(error_map, "message", fl_value_new_string(message));
-  return FL_METHOD_RESPONSE(fl_method_success_response_new(error_map));
+// Helper to create success response Map
+static FlMethodResponse* create_success_response(const gchar* message) {
+  g_autoptr(FlValue) response = fl_value_new_map();
+  fl_value_set_string_take(response, "success", fl_value_new_bool(true));
+  fl_value_set_string_take(response, "message",
+                           fl_value_new_string(message));
+  return FL_METHOD_RESPONSE(fl_method_success_response_new(response));
 }
 
-static FlMethodResponse* send_success_response() {
-  return FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(true)));
+// Helper to create error response Map with optional code
+static FlMethodResponse* create_error_response(const gchar* message,
+                                                const gchar* code) {
+  g_autoptr(FlValue) response = fl_value_new_map();
+  fl_value_set_string_take(response, "success", fl_value_new_bool(false));
+  fl_value_set_string_take(response, "message",
+                           fl_value_new_string(message));
+  if (code != nullptr) {
+    fl_value_set_string_take(response, "code", fl_value_new_string(code));
+  }
+  return FL_METHOD_RESPONSE(fl_method_success_response_new(response));
 }
 
-static FlMethodResponse* handle_set_tray_icon(DesktopShellPlugin* self, FlValue* args) {
+static FlMethodResponse* handle_set_tray_icon(DesktopShellPlugin* self,
+                                              FlValue* args) {
   if (self->tray_manager == nullptr) {
-    return send_error_response("Tray manager not initialized");
+    return create_error_response("Tray manager not initialized",
+                                 "NOT_INITIALIZED");
   }
 
   FlValue* icon_path_value = fl_value_lookup_string(args, "iconPath");
-  if (icon_path_value == nullptr || fl_value_get_type(icon_path_value) != FL_VALUE_TYPE_STRING) {
-    return send_error_response("Missing or invalid iconPath");
+  if (icon_path_value == nullptr ||
+      fl_value_get_type(icon_path_value) != FL_VALUE_TYPE_STRING) {
+    return create_error_response("Missing or invalid iconPath",
+                                 "INVALID_ARGS");
   }
 
   const gchar* icon_path = fl_value_get_string(icon_path_value);
   if (desktop_shell_tray_manager_set_icon(self->tray_manager, icon_path)) {
-    return send_success_response();
+    return create_success_response("Tray icon set successfully");
   } else {
-    return send_error_response("Failed to set tray icon");
+    return create_error_response("Failed to set tray icon", "SET_FAILED");
   }
 }
 
-static FlMethodResponse* handle_set_tray_menu(DesktopShellPlugin* self, FlValue* args) {
+static FlMethodResponse* handle_set_tray_menu(DesktopShellPlugin* self,
+                                              FlValue* args) {
   if (self->tray_manager == nullptr) {
-    return send_error_response("Tray manager not initialized");
+    return create_error_response("Tray manager not initialized",
+                                 "NOT_INITIALIZED");
   }
 
   FlValue* menu_value = fl_value_lookup_string(args, "menu");
-  if (menu_value == nullptr || fl_value_get_type(menu_value) != FL_VALUE_TYPE_LIST) {
-    return send_error_response("Missing or invalid menu");
+  if (menu_value == nullptr ||
+      fl_value_get_type(menu_value) != FL_VALUE_TYPE_LIST) {
+    return create_error_response("Missing or invalid menu", "INVALID_ARGS");
   }
 
   if (desktop_shell_tray_manager_set_menu(self->tray_manager, menu_value)) {
-    return send_success_response();
+    return create_success_response("Tray menu set successfully");
   } else {
-    return send_error_response("Failed to set tray menu");
+    return create_error_response("Failed to set tray menu", "SET_FAILED");
   }
 }
 
-static FlMethodResponse* handle_pop_up_context_menu(DesktopShellPlugin* self) {
+static FlMethodResponse* handle_pop_up_tray_menu(DesktopShellPlugin* self) {
   if (self->tray_manager == nullptr) {
-    return send_error_response("Tray manager not initialized");
+    return create_error_response("Tray manager not initialized",
+                                 "NOT_INITIALIZED");
   }
 
   // On Linux, menu appears automatically on tray click
-  // This method is mainly for Windows compatibility
-  return send_success_response();
+  // This method is mainly for Windows/macOS compatibility
+  return create_success_response("Menu handled by system on Linux");
 }
 
-static FlMethodResponse* handle_show_window(DesktopShellPlugin* self) {
+static FlMethodResponse* handle_show(DesktopShellPlugin* self) {
   if (self->window_manager == nullptr) {
-    return send_error_response("Window manager not initialized");
+    return create_error_response("Window manager not initialized",
+                                 "NOT_INITIALIZED");
   }
 
   if (desktop_shell_window_manager_show(self->window_manager)) {
-    return send_success_response();
+    return create_success_response("Window shown successfully");
   } else {
-    return send_error_response("Failed to show window");
+    return create_error_response("Failed to show window", "SHOW_FAILED");
   }
 }
 
-static FlMethodResponse* handle_hide_window(DesktopShellPlugin* self) {
+static FlMethodResponse* handle_hide(DesktopShellPlugin* self) {
   if (self->window_manager == nullptr) {
-    return send_error_response("Window manager not initialized");
+    return create_error_response("Window manager not initialized",
+                                 "NOT_INITIALIZED");
   }
 
   if (desktop_shell_window_manager_hide(self->window_manager)) {
-    return send_success_response();
+    return create_success_response("Window hidden successfully");
   } else {
-    return send_error_response("Failed to hide window");
+    return create_error_response("Failed to hide window", "HIDE_FAILED");
   }
 }
 
-static FlMethodResponse* handle_focus_window(DesktopShellPlugin* self) {
+static FlMethodResponse* handle_focus(DesktopShellPlugin* self) {
   if (self->window_manager == nullptr) {
-    return send_error_response("Window manager not initialized");
+    return create_error_response("Window manager not initialized",
+                                 "NOT_INITIALIZED");
   }
 
   if (desktop_shell_window_manager_focus(self->window_manager)) {
-    return send_success_response();
+    return create_success_response("Window focused successfully");
   } else {
-    return send_error_response("Failed to focus window");
+    return create_error_response("Failed to focus window", "FOCUS_FAILED");
   }
 }
 
-static FlMethodResponse* handle_set_prevent_close(DesktopShellPlugin* self, FlValue* args) {
+static FlMethodResponse* handle_set_prevent_close(DesktopShellPlugin* self,
+                                                  FlValue* args) {
   if (self->window_manager == nullptr) {
-    return send_error_response("Window manager not initialized");
+    return create_error_response("Window manager not initialized",
+                                 "NOT_INITIALIZED");
   }
 
   FlValue* prevent_value = fl_value_lookup_string(args, "prevent");
-  if (prevent_value == nullptr || fl_value_get_type(prevent_value) != FL_VALUE_TYPE_BOOL) {
-    return send_error_response("Missing or invalid prevent flag");
+  if (prevent_value == nullptr ||
+      fl_value_get_type(prevent_value) != FL_VALUE_TYPE_BOOL) {
+    return create_error_response("Missing or invalid prevent flag",
+                                 "INVALID_ARGS");
   }
 
   gboolean prevent = fl_value_get_bool(prevent_value);
-  if (desktop_shell_window_manager_set_prevent_close(self->window_manager, prevent)) {
-    return send_success_response();
+  if (desktop_shell_window_manager_set_prevent_close(self->window_manager,
+                                                      prevent)) {
+    return create_success_response("Prevent close set successfully");
   } else {
-    return send_error_response("Failed to set prevent close");
+    return create_error_response("Failed to set prevent close",
+                                 "SET_FAILED");
   }
 }
 
@@ -167,7 +195,7 @@ static FlMethodResponse* handle_destroy(DesktopShellPlugin* self) {
     desktop_shell_window_manager_destroy(self->window_manager);
     self->window_manager = nullptr;
   }
-  return send_success_response();
+  return create_success_response("Resources destroyed successfully");
 }
 
 static void method_call_cb(FlMethodChannel* channel,
@@ -183,26 +211,28 @@ static void method_call_cb(FlMethodChannel* channel,
     response = handle_set_tray_icon(self, args);
   } else if (strcmp(method, "setTrayMenu") == 0) {
     response = handle_set_tray_menu(self, args);
-  } else if (strcmp(method, "popUpContextMenu") == 0) {
-    response = handle_pop_up_context_menu(self);
-  } else if (strcmp(method, "showWindow") == 0) {
-    response = handle_show_window(self);
-  } else if (strcmp(method, "hideWindow") == 0) {
-    response = handle_hide_window(self);
-  } else if (strcmp(method, "focusWindow") == 0) {
-    response = handle_focus_window(self);
+  } else if (strcmp(method, "popUpTrayMenu") == 0) {
+    response = handle_pop_up_tray_menu(self);
+  } else if (strcmp(method, "show") == 0) {
+    response = handle_show(self);
+  } else if (strcmp(method, "hide") == 0) {
+    response = handle_hide(self);
+  } else if (strcmp(method, "focus") == 0) {
+    response = handle_focus(self);
   } else if (strcmp(method, "setPreventClose") == 0) {
     response = handle_set_prevent_close(self, args);
   } else if (strcmp(method, "destroy") == 0) {
     response = handle_destroy(self);
   } else {
-    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+    response = FL_METHOD_RESPONSE(
+        fl_method_not_implemented_response_new());
   }
 
   fl_method_call_respond(method_call, response, nullptr);
 }
 
-void desktop_shell_plugin_register_with_registrar(FlPluginRegistrar* registrar) {
+void desktop_shell_plugin_register_with_registrar(
+    FlPluginRegistrar* registrar) {
   DesktopShellPlugin* plugin = DESKTOP_SHELL_PLUGIN(
       g_object_new(desktop_shell_plugin_get_type(), nullptr));
 
