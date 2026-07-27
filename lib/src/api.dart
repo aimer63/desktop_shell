@@ -105,21 +105,12 @@ final class _DesktopShellImpl implements DesktopShell {
       case 'onTrayIconClick':
         onTrayIconClick(this);
       case 'onTrayMenuItemClick':
-        final key = call.arguments['key'] as String;
-        final item = _findMenuItemByKey(_currentMenu!.items, key);
+        final id = call.arguments['id'] as int;
+        final item = _currentMenu?.getMenuItemById(id);
         if (item != null) {
           onTrayMenuItemClick(this, item);
         }
     }
-  }
-
-  MenuItem? _findMenuItemByKey(List<MenuItem> items, String key) {
-    for (final item in items) {
-      if (item.key == key) {
-        return item;
-      }
-    }
-    return null;
   }
 
   @override

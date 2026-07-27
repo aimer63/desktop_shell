@@ -14,31 +14,36 @@ void main() async {
         ? 'assets/app_icon.ico'
         : 'assets/app_icon.png',
     trayItems: [
-      MenuItem(
-        key: 'show',
-        label: 'Show Window',
-        onClick: (_) async {
-          await shell?.showWindow();
-          await shell?.focusWindow();
-        },
-      ),
+      MenuItem(key: 'show', label: 'Show Window'),
       MenuItem.separator(),
-      MenuItem(
-        key: 'quit',
-        label: 'Quit',
-        onClick: (_) async {
-          await shell?.destroy();
-          exit(0);
-        },
-      ),
+      MenuItem(key: 'quit', label: 'Quit'),
     ],
-    onWindowClose: (_) => shell?.hideWindow(),
+    onWindowClose: (s) async {
+      // Hide window to tray instead of closing
+      await s.hide();
+    },
+    onTrayIconClick: (s) async {
+      // Linux: menu appears automatically
+      // Windows/macOS: menu would be shown here if needed
+    },
+    onTrayMenuItemClick: (s, item) async {
+      switch (item.key) {
+        case 'show':
+          await s.show();
+          await s.focus();
+        case 'quit':
+          await s.destroy();
+          exit(0);
+      }
+    },
   );
 
   switch (result) {
     case Ok(:final value):
       shell = value;
-      runApp(MyApp(shell: value));
+      // Enable close interception - user controls when
+      await shell.setPreventClose(true);
+      runApp(MyApp(shell: shell));
     case Err(:final error):
       stderr.writeln('Failed to initialize: ${error.message}');
       exit(1);
@@ -76,21 +81,21 @@ class _MyHomePageState extends State<MyHomePage> {
   String _status = 'Window is visible';
 
   Future<void> _showWindow() async {
-    final result = await widget.shell.showWindow();
+    final result = await widget.shell.show();
     result.map((_) {
       setState(() => _status = 'Window is visible');
     });
   }
 
   Future<void> _hideWindow() async {
-    final result = await widget.shell.hideWindow();
+    final result = await widget.shell.hide();
     result.map((_) {
       setState(() => _status = 'Window is hidden (check tray)');
     });
   }
 
   Future<void> _focusWindow() async {
-    final result = await widget.shell.focusWindow();
+    final result = await widget.shell.focus();
     result.map((_) {
       setState(() => _status = 'Window is focused');
     });

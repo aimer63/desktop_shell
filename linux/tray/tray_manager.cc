@@ -26,7 +26,7 @@ static void desktop_shell_tray_manager_dispose(GObject* object) {
     g_clear_object(&self->indicator);
   }
 
-  if (self->menu != nullptr) {
+  if (self->menu != nullptr && GTK_IS_WIDGET(self->menu)) {
     gtk_widget_destroy(self->menu);
     self->menu = nullptr;
   }

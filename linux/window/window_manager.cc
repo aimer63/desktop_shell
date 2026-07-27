@@ -1,6 +1,7 @@
 #include "window_manager.h"
 
 #include <glib-object.h>
+#include <gtk/gtk.h>
 
 // Define the instance struct
 struct _DesktopShellWindowManager {
@@ -60,7 +61,17 @@ DesktopShellWindowManager* desktop_shell_window_manager_new(GtkWindow* window) {
   manager->window = window;
 
   if (window != nullptr) {
-    // Connect delete event handler
+    // Disconnect Flutter's delete-event handler first (Flutter 3.10.1+)
+    // See: https://github.com/flutter/engine/pull/40033
+    guint handler_id = g_signal_handler_find(
+        window, G_SIGNAL_MATCH_ID,
+        g_signal_lookup("delete-event", GTK_TYPE_WINDOW),
+        0, NULL, NULL, NULL);
+    if (handler_id > 0) {
+      g_signal_handler_disconnect(window, handler_id);
+    }
+
+    // Connect our delete event handler
     manager->delete_event_handler_id = g_signal_connect(
         window, "delete-event", G_CALLBACK(on_delete_event), manager);
   }
