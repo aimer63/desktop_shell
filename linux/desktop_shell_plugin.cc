@@ -198,6 +198,12 @@ static FlMethodResponse* handle_destroy(DesktopShellPlugin* self) {
   return create_success_response("Resources destroyed successfully");
 }
 
+static FlMethodResponse* handle_initialize(DesktopShellPlugin* self) {
+  // Linux: window already initialized during plugin registration
+  // This method exists for Windows compatibility
+  return create_success_response("Initialized successfully");
+}
+
 static void method_call_cb(FlMethodChannel* channel,
                            FlMethodCall* method_call,
                            gpointer user_data) {
@@ -207,7 +213,9 @@ static void method_call_cb(FlMethodChannel* channel,
 
   g_autoptr(FlMethodResponse) response = nullptr;
 
-  if (strcmp(method, "setTrayIcon") == 0) {
+  if (strcmp(method, "initialize") == 0) {
+    response = handle_initialize(self);
+  } else if (strcmp(method, "setTrayIcon") == 0) {
     response = handle_set_tray_icon(self, args);
   } else if (strcmp(method, "setTrayMenu") == 0) {
     response = handle_set_tray_menu(self, args);
