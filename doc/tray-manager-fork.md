@@ -114,8 +114,7 @@ final initResult = await initialize(
 
 // Handle initialization result
 switch (initResult) {
-  case Ok(:final value):
-    final desk = value;
+  case Ok(value: final desk):
     runApp(MyApp(desk: desk));
   case Err(:final error):
     stderr.writeln('Failed to initialize: ${error.message}');
@@ -293,8 +292,8 @@ class DesktopShellManager {
     );
     
     switch (initResult) {
-      case Ok(:final value):
-        _shell = value;
+      case Ok(value: final shell):
+        _shell = shell;
         return Ok(());
       case Err(:final error):
         return Err('Desktop initialization failed: ${error.message}');

@@ -170,7 +170,7 @@ Use pattern matching extensively for control flow:
 // Switch expressions - REQUIRED for sealed types
 final result = await initialize();
 return switch (result) {
-  case Ok(:final value) => value,
+  case Ok(value: final shell) => shell,
   case Err(:final error) => throw error,
 };
 
@@ -284,16 +284,20 @@ Future<Result<DesktopShell, DesktopShellError>> initialize({
   required void Function(DesktopShell shell) onWindowClose,
 });
 
-// Usage with pattern matching
+// Usage with pattern matching - CLEAN (direct destructuring)
 final initResult = await initialize(...);
 switch (initResult) {
-  case Ok(:final value):
-    final shell = value;
+  case Ok(value: final shell):
     runApp(MyApp(shell: shell));
   case Err(:final error):
     stderr.writeln('Failed to initialize: ${error.message}');
     exit(1);
 }
+
+// Alternative - VERBOSE (intermediate variable)
+// case Ok(:final value):
+//   final shell = value;
+//   runApp(MyApp(shell: shell));
 ```
 
 ### Functional Composition Over Pattern Matching
@@ -316,11 +320,11 @@ Future<Result<int, CalculationError>> calculate() async {
 Future<Result<int, CalculationError>> calculateVerbose() async {
   final dataResult = await fetchData();
   switch (dataResult) {
-    case Ok(:final value):
-      final processResult = await processValue(value.value);
+    case Ok(value: final data):
+      final processResult = await processValue(data.value);
       switch (processResult) {
-        case Ok(:final value):
-          return Ok(value * 2);
+        case Ok(value: final result):
+          return Ok(result * 2);
         case Err(:final error):
           return Err(error);
       }

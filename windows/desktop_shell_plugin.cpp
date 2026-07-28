@@ -137,7 +137,7 @@ void DesktopShellPlugin::HandleMethodCall(
         error("Failed to set tray menu");
       }
 
-    } else if (method == "popUpContextMenu") {
+    } else if (method == "popUpTrayMenu") {
       if (!tray_icon_) {
         error("Tray not initialized");
         return;
@@ -149,7 +149,7 @@ void DesktopShellPlugin::HandleMethodCall(
         error("Failed to show context menu");
       }
 
-    } else if (method == "showWindow") {
+    } else if (method == "show") {
       if (!window_manager_) {
         error("Window manager not initialized");
         return;
@@ -161,7 +161,7 @@ void DesktopShellPlugin::HandleMethodCall(
         error("Failed to show window");
       }
 
-    } else if (method == "hideWindow") {
+    } else if (method == "hide") {
       if (!window_manager_) {
         error("Window manager not initialized");
         return;
@@ -173,7 +173,7 @@ void DesktopShellPlugin::HandleMethodCall(
         error("Failed to hide window");
       }
 
-    } else if (method == "focusWindow") {
+    } else if (method == "focus") {
       if (!window_manager_) {
         error("Window manager not initialized");
         return;

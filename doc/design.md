@@ -382,8 +382,7 @@ final class MenuItem {
 
 ```dart
 final result = await initialize(...);
-if (result case Ok(:final value)) {
-  final shell = value;
+if (result case Ok(value: final shell)) {
   await shell.setPreventClose(true);  // User decides
 }
 ```

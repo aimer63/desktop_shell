@@ -679,9 +679,7 @@ void main() async {
   );
 
   switch (result) {
-    case Ok(:final value):
-      final shell = value;
-      
+    case Ok(value: final shell):
       // User decides when to prevent close
       await shell.setPreventClose(true);
       

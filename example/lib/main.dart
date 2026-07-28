@@ -6,9 +6,6 @@ import 'package:flutter/material.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Capture shell for tray callbacks
-  DesktopShell? shell;
-
   final result = await initialize(
     trayIcon: Platform.isWindows
         ? 'assets/app_icon.ico'
@@ -23,8 +20,9 @@ void main() async {
       await s.hide();
     },
     onTrayIconClick: (s) async {
-      // Linux: menu appears automatically
-      // Windows/macOS: menu would be shown here if needed
+      // On Windows/macOS: this shows the context menu
+      // On Linux: menu appears automatically on tray icon click, this does nothing
+      await s.popUpTrayMenu();
     },
     onTrayMenuItemClick: (s, item) async {
       switch (item.key) {
@@ -39,8 +37,7 @@ void main() async {
   );
 
   switch (result) {
-    case Ok(:final value):
-      shell = value;
+    case Ok(value: final shell):
       // Enable close interception - user controls when
       await shell.setPreventClose(true);
       runApp(MyApp(shell: shell));

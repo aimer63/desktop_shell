@@ -38,8 +38,8 @@
 ///   );
 ///
 ///   switch (result) {
-///     case Ok(:final value):
-///       runApp(MyApp(shell: value));
+///     case Ok(value: final shell):
+///       runApp(MyApp(shell: shell));
 ///     case Err(:final error):
 ///       stderr.writeln('Failed: ${error.message}');
 ///       exit(1);
