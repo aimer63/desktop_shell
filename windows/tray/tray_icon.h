@@ -42,12 +42,6 @@ class TrayIcon {
   bool Destroy();
 
  private:
-  // Window procedure for tray messages.
-  static LRESULT CALLBACK TrayWindowProc(HWND hwnd,
-                                         UINT message,
-                                         WPARAM wparam,
-                                         LPARAM lparam);
-
   flutter::MethodChannel<flutter::EncodableValue>* channel_;
   HWND hwnd_;
   HICON icon_;

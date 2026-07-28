@@ -187,36 +187,4 @@ bool TrayIcon::Destroy() {
   return true;
 }
 
-LRESULT CALLBACK TrayIcon::TrayWindowProc(HWND hwnd,
-                                           UINT message,
-                                           WPARAM wparam,
-                                           LPARAM lparam) {
-  
-  TrayIcon* tray = reinterpret_cast<TrayIcon*>(
-      GetWindowLongPtr(hwnd, GWLP_USERDATA));
-
-  if (!tray) {
-    return DefWindowProc(hwnd, message, wparam, lparam);
-  }
-
-  if (message == WM_TRAYMESSAGE) {
-    switch (lparam) {
-      case WM_LBUTTONDOWN:
-      case WM_RBUTTONDOWN:
-        // Notify Flutter that tray icon was clicked
-        if (tray->channel_) {
-          tray->channel_->InvokeMethod("onTrayIconClick", nullptr);
-        }
-        break;
-
-      case WM_COMMAND: {
-        // Menu item clicked (not used - handled in HandleWindowMessage)
-        break;
-      }
-    }
-  }
-
-  return DefWindowProc(hwnd, message, wparam, lparam);
-}
-
 }  // namespace desktop_shell
