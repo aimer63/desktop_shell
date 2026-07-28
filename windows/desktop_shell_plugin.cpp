@@ -106,19 +106,29 @@ void DesktopShellPlugin::HandleMethodCall(
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
   const std::string& method = method_call.method_name();
 
-  // Helper to wrap success
-  auto success = [&result]() {
-    result->Success(flutter::EncodableValue(true));
+  // Helper to create success response Map
+  auto create_success_response = [&result](const std::string& message) {
+    flutter::EncodableMap response;
+    response[flutter::EncodableValue("success")] =
+        flutter::EncodableValue(true);
+    response[flutter::EncodableValue("message")] =
+        flutter::EncodableValue(message);
+    result->Success(flutter::EncodableValue(response));
   };
 
-  // Helper to wrap error
-  auto error = [&result](const std::string& message) {
-    flutter::EncodableMap error_map;
-    error_map[flutter::EncodableValue("error")] =
-        flutter::EncodableValue(true);
-    error_map[flutter::EncodableValue("message")] =
+  // Helper to create error response Map with optional code
+  auto create_error_response = [&result](const std::string& message,
+                                         const std::string& code = "") {
+    flutter::EncodableMap response;
+    response[flutter::EncodableValue("success")] =
+        flutter::EncodableValue(false);
+    response[flutter::EncodableValue("message")] =
         flutter::EncodableValue(message);
-    result->Success(flutter::EncodableValue(error_map));
+    if (!code.empty()) {
+      response[flutter::EncodableValue("code")] =
+          flutter::EncodableValue(code);
+    }
+    result->Success(flutter::EncodableValue(response));
   };
 
   try {
@@ -128,7 +138,7 @@ void DesktopShellPlugin::HandleMethodCall(
                                 GA_ROOT);
 
       if (!hwnd) {
-        error("Failed to get window handle");
+        create_error_response("Failed to get window handle", "GET_HWND_FAILED");
         return;
       }
 
@@ -140,135 +150,135 @@ void DesktopShellPlugin::HandleMethodCall(
         window_manager_->SetWindowHandle(hwnd);
       }
 
-      success();
+      create_success_response("Initialized successfully");
 
     } else if (method == "setTrayIcon") {
       if (!tray_icon_) {
-        error("Tray not initialized");
+        create_error_response("Tray not initialized", "NOT_INITIALIZED");
         return;
       }
 
       const auto* arguments =
           std::get_if<flutter::EncodableMap>(method_call.arguments());
       if (!arguments) {
-        error("Invalid arguments");
+        create_error_response("Invalid arguments", "INVALID_ARGS");
         return;
       }
 
       auto it = arguments->find(flutter::EncodableValue("iconPath"));
       if (it == arguments->end() ||
           !std::holds_alternative<std::string>(it->second)) {
-        error("Missing iconPath");
+        create_error_response("Missing iconPath", "INVALID_ARGS");
         return;
       }
 
       std::string icon_path = std::get<std::string>(it->second);
       if (tray_icon_->SetIcon(icon_path)) {
-        success();
+        create_success_response("OK");
       } else {
-        error("Failed to set tray icon");
+        create_error_response("Failed to set tray icon", "SET_FAILED");
       }
 
     } else if (method == "setTrayMenu") {
       if (!tray_icon_) {
-        error("Tray not initialized");
+        create_error_response("Tray not initialized", "NOT_INITIALIZED");
         return;
       }
 
       const auto* arguments =
           std::get_if<flutter::EncodableMap>(method_call.arguments());
       if (!arguments) {
-        error("Invalid arguments");
+        create_error_response("Invalid arguments", "INVALID_ARGS");
         return;
       }
 
       auto it = arguments->find(flutter::EncodableValue("menu"));
       if (it == arguments->end() ||
           !std::holds_alternative<flutter::EncodableList>(it->second)) {
-        error("Missing menu");
+        create_error_response("Missing menu", "INVALID_ARGS");
         return;
       }
 
       const auto& menu = std::get<flutter::EncodableList>(it->second);
       if (tray_icon_->SetMenu(menu)) {
-        success();
+        create_success_response("OK");
       } else {
-        error("Failed to set tray menu");
+        create_error_response("Failed to set tray menu", "SET_FAILED");
       }
 
     } else if (method == "popUpTrayMenu") {
       if (!tray_icon_) {
-        error("Tray not initialized");
+        create_error_response("Tray not initialized", "NOT_INITIALIZED");
         return;
       }
 
       if (tray_icon_->PopUpContextMenu()) {
-        success();
+        create_success_response("OK");
       } else {
-        error("Failed to show context menu");
+        create_error_response("Failed to show context menu", "POPUP_FAILED");
       }
 
     } else if (method == "show") {
       if (!window_manager_) {
-        error("Window manager not initialized");
+        create_error_response("Window manager not initialized", "NOT_INITIALIZED");
         return;
       }
 
       if (window_manager_->Show()) {
-        success();
+        create_success_response("OK");
       } else {
-        error("Failed to show window");
+        create_error_response("Failed to show window", "SHOW_FAILED");
       }
 
     } else if (method == "hide") {
       if (!window_manager_) {
-        error("Window manager not initialized");
+        create_error_response("Window manager not initialized", "NOT_INITIALIZED");
         return;
       }
 
       if (window_manager_->Hide()) {
-        success();
+        create_success_response("OK");
       } else {
-        error("Failed to hide window");
+        create_error_response("Failed to hide window", "HIDE_FAILED");
       }
 
     } else if (method == "focus") {
       if (!window_manager_) {
-        error("Window manager not initialized");
+        create_error_response("Window manager not initialized", "NOT_INITIALIZED");
         return;
       }
 
       if (window_manager_->Focus()) {
-        success();
+        create_success_response("OK");
       } else {
-        error("Failed to focus window");
+        create_error_response("Failed to focus window", "FOCUS_FAILED");
       }
 
     } else if (method == "setPreventClose") {
       if (!window_manager_) {
-        error("Window manager not initialized");
+        create_error_response("Window manager not initialized", "NOT_INITIALIZED");
         return;
       }
 
       const auto* arguments =
           std::get_if<flutter::EncodableMap>(method_call.arguments());
       if (!arguments) {
-        error("Invalid arguments");
+        create_error_response("Invalid arguments", "INVALID_ARGS");
         return;
       }
 
       auto it = arguments->find(flutter::EncodableValue("prevent"));
       if (it == arguments->end() ||
           !std::holds_alternative<bool>(it->second)) {
-        error("Missing prevent flag");
+        create_error_response("Missing prevent flag", "INVALID_ARGS");
         return;
       }
 
       bool prevent = std::get<bool>(it->second);
       if (window_manager_->SetPreventClose(prevent)) {
-        success();
+        create_success_response("OK");
       } else {
-        error("Failed to set prevent close");
+        create_error_response("Failed to set prevent close", "SET_FAILED");
       }
 
     } else if (method == "destroy") {
@@ -278,15 +288,15 @@ void DesktopShellPlugin::HandleMethodCall(
       if (window_manager_) {
         window_manager_->Destroy();
       }
-      success();
+      create_success_response("OK");
 
     } else {
       result->NotImplemented();
     }
   } catch (const std::exception& e) {
-    error(std::string("Exception: ") + e.what());
+    create_error_response(std::string("Exception: ") + e.what(), "EXCEPTION");
   } catch (...) {
-    error("Unknown exception");
+    create_error_response("Unknown exception", "EXCEPTION");
   }
 }
 
