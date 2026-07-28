@@ -22,9 +22,10 @@ final class MenuItem {
       checked = false;
 
   /// Convert to JSON for platform channel.
-  Map<String, dynamic> toJson() {
+  /// Note: ID is assigned by Menu.toJson() to ensure sequential 16-bit compatible IDs.
+  Map<String, dynamic> toJson(int id) {
     return {
-      'id': key.hashCode,
+      'id': id,
       'key': key,
       'label': label,
       'type': isSeparator ? 'separator' : (checked ? 'checkbox' : 'normal'),
@@ -37,20 +38,30 @@ final class MenuItem {
 final class Menu {
   final List<MenuItem> items;
 
-  const Menu({required this.items});
+  /// Maps sequential IDs (1024+) to menu items for O(1) lookup.
+  late final Map<int, MenuItem> _idToItem;
+
+  Menu({required this.items}) {
+    // Assign sequential IDs starting at 1024 (avoids confusion with menu indices)
+    _idToItem = {};
+    var nextId = 1024;
+    for (final item in items) {
+      _idToItem[nextId++] = item;
+    }
+  }
 
   /// Convert to JSON for platform channel.
+  /// Uses the pre-computed ID mapping to ensure consistency between
+  /// the IDs sent to native and the IDs used for lookup.
   List<Map<String, dynamic>> toJson() {
-    return items.map((item) => item.toJson()).toList();
+    // Use _idToItem entries to guarantee IDs match the lookup table.
+    return _idToItem.entries.map((entry) {
+      final id = entry.key; // Sequential ID (1024, 1025, ...)
+      final item = entry.value; // Corresponding MenuItem
+      return item.toJson(id);
+    }).toList();
   }
 
-  /// Find a menu item by its key hash.
-  MenuItem? getMenuItemById(int id) {
-    for (final item in items) {
-      if (item.key.hashCode == id) {
-        return item;
-      }
-    }
-    return null;
-  }
+  /// Find a menu item by its sequential ID.
+  MenuItem? getMenuItemById(int id) => _idToItem[id];
 }

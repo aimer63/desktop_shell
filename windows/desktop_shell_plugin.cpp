@@ -365,8 +365,9 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
   // Handle menu item clicks
   if (message == WM_COMMAND && tray_icon_) {
     OutputDebugStringA("DEBUG_PLUGIN_PROC: Handling WM_COMMAND\n");
-    int menu_id = LOWORD(wparam);
-    if (menu_id > 0 && channel_) {
+    // Use full wparam value (sequential IDs from Dart are 1024-65535)
+    int menu_id = static_cast<int>(wparam);
+    if (menu_id >= 1024 && channel_) {
       flutter::EncodableMap args;
       args[flutter::EncodableValue("id")] =
           flutter::EncodableValue(menu_id);

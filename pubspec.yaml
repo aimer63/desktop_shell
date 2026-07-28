@@ -12,7 +12,6 @@ dependencies:
   flutter:
     sdk: flutter
   path: ^1.8.0
-  shortid: ^0.1.2
   unwrap_me:
     git:
       url: https://github.com/aimer63/unwrap_me

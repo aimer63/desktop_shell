@@ -241,15 +241,7 @@ LRESULT CALLBACK TrayIcon::TrayWindowProc(HWND hwnd,
         break;
 
       case WM_COMMAND: {
-        // Menu item clicked
-        int menu_id = LOWORD(wparam);
-        if (tray->channel_ && menu_id > 0) {
-          flutter::EncodableMap args;
-          args[flutter::EncodableValue("id")] =
-              flutter::EncodableValue(menu_id);
-          tray->channel_->InvokeMethod("onTrayMenuItemClick",
-                                       std::make_unique<flutter::EncodableValue>(args));
-        }
+        // Menu item clicked (not used - handled in HandleWindowMessage)
         break;
       }
     }
