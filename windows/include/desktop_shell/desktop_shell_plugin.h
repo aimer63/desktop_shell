@@ -48,9 +48,9 @@ class DesktopShellPlugin : public flutter::Plugin {
 
   // Handle window messages.
   std::optional<LRESULT> HandleWindowMessage(HWND hwnd,
-                                              UINT message,
-                                              WPARAM wparam,
-                                              LPARAM lparam);
+                                               UINT message,
+                                               WPARAM wparam,
+                                               LPARAM lparam);
 };
 
 }  // namespace desktop_shell

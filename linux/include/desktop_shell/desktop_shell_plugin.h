@@ -1,5 +1,5 @@
-#ifndef FLUTTER_PLUGIN_DESKTOP_SHELL_PLUGIN_H_
-#define FLUTTER_PLUGIN_DESKTOP_SHELL_PLUGIN_H_
+#ifndef DESKTOP_SHELL_PLUGIN_H_
+#define DESKTOP_SHELL_PLUGIN_H_
 
 #include <flutter_linux/flutter_linux.h>
 
@@ -23,4 +23,4 @@ FLUTTER_PLUGIN_EXPORT void desktop_shell_plugin_register_with_registrar(
 
 G_END_DECLS
 
-#endif  // FLUTTER_PLUGIN_DESKTOP_SHELL_PLUGIN_H_
+#endif  // DESKTOP_SHELL_PLUGIN_H_
