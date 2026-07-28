@@ -154,12 +154,12 @@ void DesktopShellPlugin::HandleMethodCall(
         window_manager_->SetWindowHandle(hwnd);
       }
 
-      create_success_response("Initialized successfully");
+      create_success_response("OK");
 
     } else if (method == "setTrayIcon") {
       
       if (!tray_icon_) {
-        create_error_response("Tray not initialized", "NOT_INITIALIZED");
+        create_error_response("Tray not initialized", "TRAY_NOT_INITIALIZED");
         return;
       }
 
@@ -173,7 +173,7 @@ void DesktopShellPlugin::HandleMethodCall(
       auto it = arguments->find(flutter::EncodableValue("iconPath"));
       if (it == arguments->end() ||
           !std::holds_alternative<std::string>(it->second)) {
-        create_error_response("Missing iconPath", "INVALID_ARGS");
+        create_error_response("Missing iconPath", "MISSING_ICONPATH");
         return;
       }
 
@@ -181,12 +181,12 @@ void DesktopShellPlugin::HandleMethodCall(
       if (tray_icon_->SetIcon(icon_path)) {
         create_success_response("OK");
       } else {
-        create_error_response("Failed to set tray icon", "SET_FAILED");
+        create_error_response("Failed to set tray icon", "SET_ICON_FAILED");
       }
 
     } else if (method == "setTrayMenu") {
       if (!tray_icon_) {
-        create_error_response("Tray not initialized", "NOT_INITIALIZED");
+        create_error_response("Tray not initialized", "TRAY_NOT_INITIALIZED");
         return;
       }
 
@@ -200,7 +200,7 @@ void DesktopShellPlugin::HandleMethodCall(
       auto it = arguments->find(flutter::EncodableValue("menu"));
       if (it == arguments->end() ||
           !std::holds_alternative<flutter::EncodableList>(it->second)) {
-        create_error_response("Missing menu", "INVALID_ARGS");
+        create_error_response("Missing or invalid menu", "MISSING_MENU");
         return;
       }
 
@@ -208,12 +208,12 @@ void DesktopShellPlugin::HandleMethodCall(
       if (tray_icon_->SetMenu(menu)) {
         create_success_response("OK");
       } else {
-        create_error_response("Failed to set tray menu", "SET_FAILED");
+        create_error_response("Failed to set tray menu", "SET_MENU_FAILED");
       }
 
     } else if (method == "popUpTrayMenu") {
       if (!tray_icon_) {
-        create_error_response("Tray not initialized", "NOT_INITIALIZED");
+        create_error_response("Tray not initialized", "TRAY_NOT_INITIALIZED");
         return;
       }
 
@@ -225,7 +225,7 @@ void DesktopShellPlugin::HandleMethodCall(
 
     } else if (method == "show") {
       if (!window_manager_) {
-        create_error_response("Window manager not initialized", "NOT_INITIALIZED");
+        create_error_response("Window manager not initialized", "WINDOW_MANAGER_NOT_INITIALIZED");
         return;
       }
 
@@ -237,7 +237,7 @@ void DesktopShellPlugin::HandleMethodCall(
 
     } else if (method == "hide") {
       if (!window_manager_) {
-        create_error_response("Window manager not initialized", "NOT_INITIALIZED");
+        create_error_response("Window manager not initialized", "WINDOW_MANAGER_NOT_INITIALIZED");
         return;
       }
 
@@ -249,7 +249,7 @@ void DesktopShellPlugin::HandleMethodCall(
 
     } else if (method == "focus") {
       if (!window_manager_) {
-        create_error_response("Window manager not initialized", "NOT_INITIALIZED");
+        create_error_response("Window manager not initialized", "WINDOW_MANAGER_NOT_INITIALIZED");
         return;
       }
 
@@ -262,7 +262,7 @@ void DesktopShellPlugin::HandleMethodCall(
     } else if (method == "setPreventClose") {
       
       if (!window_manager_) {
-        create_error_response("Window manager not initialized", "NOT_INITIALIZED");
+        create_error_response("Window manager not initialized", "WINDOW_MANAGER_NOT_INITIALIZED");
         return;
       }
 
@@ -276,7 +276,7 @@ void DesktopShellPlugin::HandleMethodCall(
       auto it = arguments->find(flutter::EncodableValue("prevent"));
       if (it == arguments->end() ||
           !std::holds_alternative<bool>(it->second)) {
-        create_error_response("Missing prevent flag", "INVALID_ARGS");
+        create_error_response("Missing or invalid prevent flag", "MISSING_PREVENT_FLAG");
         return;
       }
 
@@ -284,7 +284,7 @@ void DesktopShellPlugin::HandleMethodCall(
       if (window_manager_->SetPreventClose(prevent)) {
         create_success_response("OK");
       } else {
-        create_error_response("Failed to set prevent close", "SET_FAILED");
+        create_error_response("Failed to set prevent close", "SET_PREVENT_CLOSE_FAILED");
       }
 
     } else if (method == "destroy") {
