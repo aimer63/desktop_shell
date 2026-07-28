@@ -234,7 +234,7 @@ class TrayIcon {
         }
         break;
     }
-  }
+ }
 };
 ```
 

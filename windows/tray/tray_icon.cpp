@@ -138,10 +138,17 @@ bool TrayIcon::PopUpContextMenu() {
   OutputDebugStringA("DEBUG_TRAY: Popup menu created\n");
 
   // Build menu from items
-  int id = 1;
   for (const auto& item : menu_items_) {
     if (std::holds_alternative<flutter::EncodableMap>(item)) {
       auto map = std::get<flutter::EncodableMap>(item);
+
+      // Get ID from menu item (hashCode from Dart)
+      int id = 0;
+      auto id_it = map.find(flutter::EncodableValue("id"));
+      if (id_it != map.end() &&
+          std::holds_alternative<int>(id_it->second)) {
+        id = std::get<int>(id_it->second);
+      }
 
       std::string label;
       std::string type = "normal";
@@ -162,7 +169,7 @@ bool TrayIcon::PopUpContextMenu() {
         AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
       } else {
         std::wstring wide_label = Utf8ToWide(label);
-        AppendMenuW(hMenu, MF_STRING, id++, wide_label.c_str());
+        AppendMenuW(hMenu, MF_STRING, id, wide_label.c_str());
       }
     }
   }
