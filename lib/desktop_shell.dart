@@ -11,7 +11,7 @@
 /// import 'dart:io';
 ///
 /// void main() async {
-///   final result = await initialize(
+///   final result = await DesktopShell.initialize(
 ///     trayIcon: Platform.isWindows
 ///         ? 'assets/icon.ico'
 ///         : 'assets/icon.png',
@@ -50,6 +50,6 @@ library;
 
 export 'package:unwrap_me/unwrap_me.dart' show Result, Ok, Err;
 
-export 'src/api.dart' show DesktopShell, initialize;
+export 'src/api.dart' show DesktopShell;
 export 'src/errors.dart';
 export 'src/menu/menu.dart' show Menu, MenuItem;

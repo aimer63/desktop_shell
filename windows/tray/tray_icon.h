@@ -23,6 +23,9 @@ class TrayIcon {
   // Initialize with parent window handle.
   bool Initialize(HWND hwnd);
 
+  // Set the window handle (called after construction when window is available).
+  void SetWindowHandle(HWND hwnd);
+
   // Set the tray icon from file path.
   bool SetIcon(const std::string& icon_path);
 

@@ -11,53 +11,68 @@ import 'menu/menu.dart';
 /// The single platform channel for all operations.
 const _channel = MethodChannel('desktop_shell');
 
-/// Initialize desktop shell with tray and window management.
-///
-/// Returns a [Result] containing [DesktopShell] instance on success,
-/// or [DesktopShellError] on failure.
-Future<Result<DesktopShell, DesktopShellError>> initialize({
-  required String trayIcon,
-  required List<MenuItem> trayItems,
-  required void Function(DesktopShell shell) onWindowClose,
-  required void Function(DesktopShell shell) onTrayIconClick,
-  required void Function(DesktopShell shell, MenuItem item) onTrayMenuItemClick,
-}) async {
-  // Check platform support
-  if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
-    return const Err(UnsupportedPlatformError('unsupported'));
-  }
-
-  // Create shell instance
-  final shell = _DesktopShellImpl(
-    onWindowClose: onWindowClose,
-    onTrayIconClick: onTrayIconClick,
-    onTrayMenuItemClick: onTrayMenuItemClick,
-  );
-
-  // Register handler for native events
-  _channel.setMethodCallHandler((call) async {
-    await shell._dispatchNativeEvent(call);
-  });
-
-  // Initialize tray icon
-  final iconResult = await shell.setTrayIcon(trayIcon);
-  if (iconResult case Err(:final error)) {
-    return Err(error);
-  }
-
-  // Initialize tray menu
-  final menuResult = await shell.setTrayMenu(trayItems);
-  if (menuResult case Err(:final error)) {
-    return Err(error);
-  }
-
-  return Ok(shell);
-}
-
 /// Main desktop shell controller interface.
 ///
 /// All operations return [Result] for explicit error handling.
 abstract class DesktopShell {
+  /// Initialize desktop shell with tray and window management.
+  ///
+  /// Returns a [Result] containing [DesktopShell] instance on success,
+  /// or [DesktopShellError] on failure.
+  static Future<Result<DesktopShell, DesktopShellError>> initialize({
+    required String trayIcon,
+    required List<MenuItem> trayItems,
+    required void Function(DesktopShell shell) onWindowClose,
+    required void Function(DesktopShell shell) onTrayIconClick,
+    required void Function(DesktopShell shell, MenuItem item)
+    onTrayMenuItemClick,
+  }) async {
+    // Check platform support
+    if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
+      return const Err(UnsupportedPlatformError('unsupported'));
+    }
+
+    // Create shell instance
+    final shell = _DesktopShellImpl(
+      onWindowClose: onWindowClose,
+      onTrayIconClick: onTrayIconClick,
+      onTrayMenuItemClick: onTrayMenuItemClick,
+    );
+
+    // Register handler for native events
+    _channel.setMethodCallHandler((call) async {
+      await shell._dispatchNativeEvent(call);
+    });
+
+    // Initialize tray icon
+    final iconResult = await shell.setTrayIcon(trayIcon);
+    if (iconResult case Err(:final error)) {
+      return Err(error);
+    }
+
+    // Initialize tray menu
+    final menuResult = await shell.setTrayMenu(trayItems);
+    if (menuResult case Err(:final error)) {
+      return Err(error);
+    }
+
+    // Initialize native plugin (sets window handle on Windows)
+    final initResult = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'initialize',
+    );
+
+    if (initResult == null || initResult['success'] != true) {
+      return Err(
+        WindowInitError(
+          initResult?['message'] as String? ?? 'Failed to initialize window',
+          code: Option.fromNullable(initResult?['code'] as String?),
+        ),
+      );
+    }
+
+    return Ok(shell);
+  }
+
   /// Set tray icon from path.
   Future<Result<(), TrayIconError>> setTrayIcon(String iconPath);
 

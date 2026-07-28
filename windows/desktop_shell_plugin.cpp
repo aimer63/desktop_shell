@@ -67,22 +67,14 @@ void DesktopShellPlugin::RegisterWithRegistrar(
   auto* channel_ptr = channel.get();
 
   auto plugin = std::make_unique<DesktopShellPlugin>(registrar,
-                                                      std::move(channel));
+                                                       std::move(channel));
 
-  // Initialize tray icon with channel
+  // Initialize tray icon with channel (window handle set later)
   plugin->tray_icon_ = std::make_unique<TrayIcon>(channel_ptr);
+  plugin->tray_icon_->Initialize(nullptr);
 
-  // Get the native window handle
-  HWND hwnd = nullptr;
-  if (registrar->GetView()) {
-    hwnd = registrar->GetView()->GetNativeWindow();
-  }
-
-  // Initialize tray and window managers
-  if (hwnd) {
-    plugin->tray_icon_->Initialize(hwnd);
-    plugin->window_manager_ = std::make_unique<WindowManager>(hwnd);
-  }
+  // Initialize window manager (window handle set later)
+  plugin->window_manager_ = std::make_unique<WindowManager>();
 
   // Register window message handler
   plugin->window_proc_id_ = registrar->RegisterTopLevelWindowProcDelegate(
@@ -130,7 +122,27 @@ void DesktopShellPlugin::HandleMethodCall(
   };
 
   try {
-    if (method == "setTrayIcon") {
+    if (method == "initialize") {
+      // Get the native window handle (now available since Dart is running)
+      HWND hwnd = ::GetAncestor(registrar_->GetView()->GetNativeWindow(),
+                                GA_ROOT);
+
+      if (!hwnd) {
+        error("Failed to get window handle");
+        return;
+      }
+
+      // Set window handle on tray icon and window manager
+      if (tray_icon_) {
+        tray_icon_->SetWindowHandle(hwnd);
+      }
+      if (window_manager_) {
+        window_manager_->SetWindowHandle(hwnd);
+      }
+
+      success();
+
+    } else if (method == "setTrayIcon") {
       if (!tray_icon_) {
         error("Tray not initialized");
         return;

@@ -4,9 +4,13 @@
 
 namespace desktop_shell {
 
-WindowManager::WindowManager(HWND hwnd) : hwnd_(hwnd) {}
+WindowManager::WindowManager() : hwnd_(nullptr) {}
 
 WindowManager::~WindowManager() = default;
+
+void WindowManager::SetWindowHandle(HWND hwnd) {
+  hwnd_ = hwnd;
+}
 
 bool WindowManager::Show() {
   if (!hwnd_) {

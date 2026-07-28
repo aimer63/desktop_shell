@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final result = await initialize(
+  final result = await DesktopShell.initialize(
     trayIcon: Platform.isWindows
         ? 'assets/app_icon.ico'
         : 'assets/app_icon.png',

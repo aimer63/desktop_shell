@@ -45,9 +45,18 @@ bool TrayIcon::Initialize(HWND hwnd) {
   }
 
   // Store this pointer for window procedure
-  SetWindowLongPtr(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+  if (hwnd_) {
+    SetWindowLongPtr(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+  }
 
   return true;
+}
+
+void TrayIcon::SetWindowHandle(HWND hwnd) {
+  hwnd_ = hwnd;
+  if (hwnd_) {
+    SetWindowLongPtr(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+  }
 }
 
 bool TrayIcon::SetIcon(const std::string& icon_path) {
