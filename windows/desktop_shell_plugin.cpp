@@ -133,11 +133,16 @@ void DesktopShellPlugin::HandleMethodCall(
 
   try {
     if (method == "initialize") {
+      OutputDebugStringA("DEBUG_NATIVE: initialize handler started\n");
+      
       // Get the native window handle (now available since Dart is running)
       HWND hwnd = ::GetAncestor(registrar_->GetView()->GetNativeWindow(),
                                 GA_ROOT);
+      
+      OutputDebugStringA("DEBUG_NATIVE: Got HWND\n");
 
       if (!hwnd) {
+        OutputDebugStringA("DEBUG_NATIVE: HWND is null!\n");
         create_error_response("Failed to get window handle", "GET_HWND_FAILED");
         return;
       }
@@ -145,15 +150,21 @@ void DesktopShellPlugin::HandleMethodCall(
       // Set window handle on tray icon and window manager
       if (tray_icon_) {
         tray_icon_->SetWindowHandle(hwnd);
+        OutputDebugStringA("DEBUG_NATIVE: SetWindowHandle on tray_icon_\n");
       }
       if (window_manager_) {
         window_manager_->SetWindowHandle(hwnd);
+        OutputDebugStringA("DEBUG_NATIVE: SetWindowHandle on window_manager_\n");
       }
 
+      OutputDebugStringA("DEBUG_NATIVE: initialize handler complete\n");
       create_success_response("Initialized successfully");
 
     } else if (method == "setTrayIcon") {
+      OutputDebugStringA("DEBUG_NATIVE: setTrayIcon handler started\n");
+      
       if (!tray_icon_) {
+        OutputDebugStringA("DEBUG_NATIVE: tray_icon_ is null!\n");
         create_error_response("Tray not initialized", "NOT_INITIALIZED");
         return;
       }
@@ -255,7 +266,10 @@ void DesktopShellPlugin::HandleMethodCall(
       }
 
     } else if (method == "setPreventClose") {
+      OutputDebugStringA("DEBUG_NATIVE: setPreventClose handler started\n");
+      
       if (!window_manager_) {
+        OutputDebugStringA("DEBUG_NATIVE: window_manager_ is null!\n");
         create_error_response("Window manager not initialized", "NOT_INITIALIZED");
         return;
       }

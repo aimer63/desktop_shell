@@ -60,12 +60,19 @@ void TrayIcon::SetWindowHandle(HWND hwnd) {
 }
 
 bool TrayIcon::SetIcon(const std::string& icon_path) {
+  OutputDebugStringA("DEBUG_TRAY: SetIcon started\n");
+  
   if (!hwnd_) {
+    OutputDebugStringA("DEBUG_TRAY: hwnd_ is null!\n");
     return false;
   }
 
+  OutputDebugStringA("DEBUG_TRAY: hwnd_ is valid\n");
+  
   // Convert icon path to wide string
   std::wstring wide_path = Utf8ToWide(icon_path);
+  
+  OutputDebugStringA("DEBUG_TRAY: Converted path to wide string\n");
 
   // Load the icon
   HICON hIcon = static_cast<HICON>(
