@@ -1,7 +1,6 @@
 #include "desktop_shell/desktop_shell_plugin.h"
 
 #include <windows.h>
-#include <stdio.h>
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>
@@ -61,7 +60,6 @@ class DesktopShellPlugin : public flutter::Plugin {
 // static
 void DesktopShellPlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows* registrar) {
-  OutputDebugStringA("DEBUG_PLUGIN: RegisterWithRegistrar started\n");
   
   auto channel =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
@@ -88,21 +86,18 @@ void DesktopShellPlugin::RegisterWithRegistrar(
       });
 
   registrar->AddPlugin(std::move(plugin));
-  OutputDebugStringA("DEBUG_PLUGIN: RegisterWithRegistrar complete\n");
 }
 
 DesktopShellPlugin::DesktopShellPlugin(
     flutter::PluginRegistrarWindows* registrar,
     std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel)
     : registrar_(registrar), channel_(std::move(channel)) {
-  OutputDebugStringA("DEBUG_PLUGIN: DesktopShellPlugin constructor\n");
   channel_->SetMethodCallHandler([this](const auto& call, auto result) {
     HandleMethodCall(call, std::move(result));
   });
 }
 
 DesktopShellPlugin::~DesktopShellPlugin() {
-  OutputDebugStringA("DEBUG_PLUGIN: DesktopShellPlugin destructor\n");
   if (window_proc_id_ != -1) {
     registrar_->UnregisterTopLevelWindowProcDelegate(window_proc_id_);
   }
@@ -140,16 +135,13 @@ void DesktopShellPlugin::HandleMethodCall(
 
   try {
     if (method == "initialize") {
-      OutputDebugStringA("DEBUG_NATIVE: initialize handler started\n");
       
       // Get the native window handle (now available since Dart is running)
       HWND hwnd = ::GetAncestor(registrar_->GetView()->GetNativeWindow(),
                                 GA_ROOT);
       
-      OutputDebugStringA("DEBUG_NATIVE: Got HWND\n");
 
       if (!hwnd) {
-        OutputDebugStringA("DEBUG_NATIVE: HWND is null!\n");
         create_error_response("Failed to get window handle", "GET_HWND_FAILED");
         return;
       }
@@ -157,21 +149,16 @@ void DesktopShellPlugin::HandleMethodCall(
       // Set window handle on tray icon and window manager
       if (tray_icon_) {
         tray_icon_->SetWindowHandle(hwnd);
-        OutputDebugStringA("DEBUG_NATIVE: SetWindowHandle on tray_icon_\n");
       }
       if (window_manager_) {
         window_manager_->SetWindowHandle(hwnd);
-        OutputDebugStringA("DEBUG_NATIVE: SetWindowHandle on window_manager_\n");
       }
 
-      OutputDebugStringA("DEBUG_NATIVE: initialize handler complete\n");
       create_success_response("Initialized successfully");
 
     } else if (method == "setTrayIcon") {
-      OutputDebugStringA("DEBUG_NATIVE: setTrayIcon handler started\n");
       
       if (!tray_icon_) {
-        OutputDebugStringA("DEBUG_NATIVE: tray_icon_ is null!\n");
         create_error_response("Tray not initialized", "NOT_INITIALIZED");
         return;
       }
@@ -273,10 +260,8 @@ void DesktopShellPlugin::HandleMethodCall(
       }
 
     } else if (method == "setPreventClose") {
-      OutputDebugStringA("DEBUG_NATIVE: setPreventClose handler started\n");
       
       if (!window_manager_) {
-        OutputDebugStringA("DEBUG_NATIVE: window_manager_ is null!\n");
         create_error_response("Window manager not initialized", "NOT_INITIALIZED");
         return;
       }
@@ -326,14 +311,10 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
     UINT message,
     WPARAM wparam,
     LPARAM lparam) {
-  char msg_buf[256];
-  snprintf(msg_buf, sizeof(msg_buf), "DEBUG_PLUGIN_PROC: Message %u, wparam=%llu, lparam=%llu\n", message, (unsigned long long)wparam, (unsigned long long)lparam);
-  OutputDebugStringA(msg_buf);
   
   // Handle window close interception
   if (message == WM_CLOSE && window_manager_ &&
       window_manager_->IsPreventClose()) {
-    OutputDebugStringA("DEBUG_PLUGIN_PROC: Handling WM_CLOSE\n");
     // Hide instead of close
     window_manager_->Hide();
 
@@ -347,11 +328,9 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
 
   // Handle tray icon messages
   if (message == WM_TRAYMESSAGE && tray_icon_) {
-    OutputDebugStringA("DEBUG_PLUGIN_PROC: Handling tray icon message\n");
     switch (lparam) {
       case WM_LBUTTONUP:
       case WM_RBUTTONUP:
-        OutputDebugStringA("DEBUG_PLUGIN_PROC: Tray icon clicked\n");
         // Notify Flutter
         if (channel_) {
           channel_->InvokeMethod("onTrayIconClick", nullptr);
@@ -364,7 +343,6 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
 
   // Handle menu item clicks
   if (message == WM_COMMAND && tray_icon_) {
-    OutputDebugStringA("DEBUG_PLUGIN_PROC: Handling WM_COMMAND\n");
     // Use full wparam value (sequential IDs from Dart are 1024-65535)
     int menu_id = static_cast<int>(wparam);
     if (menu_id >= 1024 && channel_) {

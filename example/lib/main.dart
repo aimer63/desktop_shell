@@ -1,5 +1,3 @@
-// ignore_for_file: avoid_print
-
 import 'dart:io';
 
 import 'package:desktop_shell/desktop_shell.dart';
@@ -7,7 +5,6 @@ import 'package:flutter/material.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  debugPrint('DEBUG: Starting main');
 
   final result = await DesktopShell.initialize(
     trayIcon: Platform.isWindows
@@ -39,15 +36,10 @@ void main() async {
     },
   );
 
-  debugPrint('DEBUG: Initialize returned: $result');
-
   switch (result) {
     case Ok(value: final shell):
-      debugPrint('DEBUG: Before setPreventClose');
       await shell.setPreventClose(true);
-      debugPrint('DEBUG: After setPreventClose, before runApp');
       runApp(MyApp(shell: shell));
-      debugPrint('DEBUG: After runApp');
     case Err(:final error):
       stderr.writeln('Failed to initialize: ${error.message}');
       exit(1);
