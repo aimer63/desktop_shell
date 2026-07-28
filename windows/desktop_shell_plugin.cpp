@@ -3,7 +3,6 @@
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>
-#include <flutter/plugin_registrar_manager.h>
 
 #include "tray/tray_icon.h"
 #include "window/window_manager.h"
