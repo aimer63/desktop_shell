@@ -1,4 +1,4 @@
-#include "desktop_shell_plugin.h"
+#include "desktop_shell/desktop_shell_plugin.h"
 
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
