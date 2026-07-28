@@ -3,11 +3,59 @@
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>
+#include <flutter/plugin_registrar_manager.h>
 
 #include "tray/tray_icon.h"
 #include "window/window_manager.h"
 
 namespace desktop_shell {
+
+// Forward declarations
+class TrayIcon;
+class WindowManager;
+
+// C++ Plugin class (internal implementation)
+class DesktopShellPlugin : public flutter::Plugin {
+ public:
+  static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar);
+
+  DesktopShellPlugin(
+      flutter::PluginRegistrarWindows* registrar,
+      std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel);
+
+  virtual ~DesktopShellPlugin();
+
+  // Disallow copy and assign.
+  DesktopShellPlugin(const DesktopShellPlugin&) = delete;
+  DesktopShellPlugin& operator=(const DesktopShellPlugin&) = delete;
+
+ private:
+  // Called when a method is called on this plugin's channel from Dart.
+  void HandleMethodCall(
+      const flutter::MethodCall<flutter::EncodableValue>& method_call,
+      std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+
+  // The registrar for this plugin, for accessing the window.
+  flutter::PluginRegistrarWindows* registrar_;
+
+  // The method channel used to communicate with the Dart side.
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
+
+  // Tray icon and menu manager.
+  std::unique_ptr<TrayIcon> tray_icon_;
+
+  // Window manager.
+  std::unique_ptr<WindowManager> window_manager_;
+
+  // Window message procedure ID.
+  int window_proc_id_ = -1;
+
+  // Handle window messages.
+  std::optional<LRESULT> HandleWindowMessage(HWND hwnd,
+                                               UINT message,
+                                               WPARAM wparam,
+                                               LPARAM lparam);
+};
 
 // static
 void DesktopShellPlugin::RegisterWithRegistrar(
@@ -254,3 +302,11 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
 }
 
 }  // namespace desktop_shell
+
+// C export function for Flutter plugin registration
+void DesktopShellPluginRegisterWithRegistrar(
+    FlutterDesktopPluginRegistrarRef registrar) {
+  desktop_shell::DesktopShellPlugin::RegisterWithRegistrar(
+      flutter::PluginRegistrarManager::GetInstance()
+          ->GetRegistrar<flutter::PluginRegistrarWindows>(registrar));
+}
