@@ -32,6 +32,20 @@ abstract class DesktopShell {
       return const Err(UnsupportedPlatformError('unsupported'));
     }
 
+    // Initialize native plugin first (sets window handle on Windows)
+    final initResult = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'initialize',
+    );
+
+    if (initResult == null || initResult['success'] != true) {
+      return Err(
+        WindowInitError(
+          initResult?['message'] as String? ?? 'Failed to initialize window',
+          code: Option.fromNullable(initResult?['code'] as String?),
+        ),
+      );
+    }
+
     // Create shell instance
     final shell = _DesktopShellImpl(
       onWindowClose: onWindowClose,
@@ -44,7 +58,7 @@ abstract class DesktopShell {
       await shell._dispatchNativeEvent(call);
     });
 
-    // Initialize tray icon
+    // Initialize tray icon (needs hwnd on Windows)
     final iconResult = await shell.setTrayIcon(trayIcon);
     if (iconResult case Err(:final error)) {
       return Err(error);
@@ -54,20 +68,6 @@ abstract class DesktopShell {
     final menuResult = await shell.setTrayMenu(trayItems);
     if (menuResult case Err(:final error)) {
       return Err(error);
-    }
-
-    // Initialize native plugin (sets window handle on Windows)
-    final initResult = await _channel.invokeMethod<Map<dynamic, dynamic>>(
-      'initialize',
-    );
-
-    if (initResult == null || initResult['success'] != true) {
-      return Err(
-        WindowInitError(
-          initResult?['message'] as String? ?? 'Failed to initialize window',
-          code: Option.fromNullable(initResult?['code'] as String?),
-        ),
-      );
     }
 
     return Ok(shell);
