@@ -1,5 +1,7 @@
 #include "tray_icon.h"
 
+#include <windows.h>
+#include <stdio.h>
 #include <flutter/standard_method_codec.h>
 
 #include <string>
@@ -87,15 +89,20 @@ bool TrayIcon::SetIcon(const std::string& icon_path) {
   }
 
   if (!hIcon) {
+    OutputDebugStringA("DEBUG_TRAY: LoadImageW failed for both sizes\n");
     return false;
   }
+  
+  OutputDebugStringA("DEBUG_TRAY: Icon loaded successfully\n");
 
   // Destroy old icon if exists
   if (icon_) {
+    OutputDebugStringA("DEBUG_TRAY: Destroying old icon\n");
     DestroyIcon(icon_);
   }
 
   icon_ = hIcon;
+  OutputDebugStringA("DEBUG_TRAY: New icon stored\n");
 
   // Add or update the tray icon
   NOTIFYICONDATAW nid = {};
@@ -110,32 +117,48 @@ bool TrayIcon::SetIcon(const std::string& icon_path) {
   wcscpy_s(nid.szTip, L"desktop_shell");
 
   if (!icon_added_) {
+    OutputDebugStringA("DEBUG_TRAY: Calling Shell_NotifyIconW(NIM_ADD)\n");
     if (Shell_NotifyIconW(NIM_ADD, &nid)) {
       icon_added_ = true;
+      OutputDebugStringA("DEBUG_TRAY: Shell_NotifyIconW(NIM_ADD) succeeded\n");
+    } else {
+      OutputDebugStringA("DEBUG_TRAY: Shell_NotifyIconW(NIM_ADD) FAILED\n");
     }
   } else {
+    OutputDebugStringA("DEBUG_TRAY: Calling Shell_NotifyIconW(NIM_MODIFY)\n");
     Shell_NotifyIconW(NIM_MODIFY, &nid);
   }
 
+  OutputDebugStringA("DEBUG_TRAY: SetIcon returning\n");
   return icon_added_;
 }
 
 bool TrayIcon::SetMenu(const flutter::EncodableList& menu_items) {
+  OutputDebugStringA("DEBUG_TRAY: SetMenu started\n");
+  
   // Store menu items for later use
   menu_items_ = menu_items;
+  
+  OutputDebugStringA("DEBUG_TRAY: SetMenu returning\n");
   return true;
 }
 
 bool TrayIcon::PopUpContextMenu() {
+  OutputDebugStringA("DEBUG_TRAY: PopUpContextMenu started\n");
+  
   if (!hwnd_ || menu_items_.empty()) {
+    OutputDebugStringA("DEBUG_TRAY: PopUpContextMenu early return - hwnd_ or menu_items_ invalid\n");
     return false;
   }
 
   // Create popup menu
   HMENU hMenu = CreatePopupMenu();
   if (!hMenu) {
+    OutputDebugStringA("DEBUG_TRAY: CreatePopupMenu failed\n");
     return false;
   }
+  
+  OutputDebugStringA("DEBUG_TRAY: Popup menu created\n");
 
   // Build menu from items
   int id = 1;
@@ -172,17 +195,22 @@ bool TrayIcon::PopUpContextMenu() {
   GetCursorPos(&pt);
 
   // Show menu
+  OutputDebugStringA("DEBUG_TRAY: Showing popup menu\n");
   SetForegroundWindow(hwnd_);
   TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON,
                  pt.x, pt.y, 0, hwnd_, nullptr);
 
   DestroyMenu(hMenu);
+  OutputDebugStringA("DEBUG_TRAY: PopUpContextMenu returning\n");
 
   return true;
 }
 
 bool TrayIcon::Destroy() {
+  OutputDebugStringA("DEBUG_TRAY: Destroy started\n");
+  
   if (icon_added_) {
+    OutputDebugStringA("DEBUG_TRAY: Removing tray icon\n");
     NOTIFYICONDATAW nid = {};
     nid.cbSize = sizeof(NOTIFYICONDATAW);
     nid.hWnd = hwnd_;
@@ -192,10 +220,12 @@ bool TrayIcon::Destroy() {
   }
 
   if (icon_) {
+    OutputDebugStringA("DEBUG_TRAY: Destroying icon\n");
     DestroyIcon(icon_);
     icon_ = nullptr;
   }
 
+  OutputDebugStringA("DEBUG_TRAY: Destroy returning\n");
   return true;
 }
 
@@ -203,14 +233,20 @@ LRESULT CALLBACK TrayIcon::TrayWindowProc(HWND hwnd,
                                            UINT message,
                                            WPARAM wparam,
                                            LPARAM lparam) {
+  char msg_buf[256];
+  snprintf(msg_buf, sizeof(msg_buf), "DEBUG_TRAY_PROC: Message %u, wparam=%llu, lparam=%llu\n", message, (unsigned long long)wparam, (unsigned long long)lparam);
+  OutputDebugStringA(msg_buf);
+  
   TrayIcon* tray = reinterpret_cast<TrayIcon*>(
       GetWindowLongPtr(hwnd, GWLP_USERDATA));
 
   if (!tray) {
+    OutputDebugStringA("DEBUG_TRAY_PROC: No tray object, calling DefWindowProc\n");
     return DefWindowProc(hwnd, message, wparam, lparam);
   }
 
   if (message == kTrayIconMessage) {
+    OutputDebugStringA("DEBUG_TRAY_PROC: Got kTrayIconMessage\n");
     switch (lparam) {
       case WM_LBUTTONDOWN:
       case WM_RBUTTONDOWN:

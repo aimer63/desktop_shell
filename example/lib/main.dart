@@ -3,7 +3,6 @@
 import 'dart:io';
 
 import 'package:desktop_shell/desktop_shell.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 void main() async {

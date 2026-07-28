@@ -1,5 +1,7 @@
 #include "desktop_shell/desktop_shell_plugin.h"
 
+#include <windows.h>
+#include <stdio.h>
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
 #include <flutter/standard_method_codec.h>
@@ -59,6 +61,8 @@ class DesktopShellPlugin : public flutter::Plugin {
 // static
 void DesktopShellPlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows* registrar) {
+  OutputDebugStringA("DEBUG_PLUGIN: RegisterWithRegistrar started\n");
+  
   auto channel =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           registrar->messenger(), "desktop_shell",
@@ -84,18 +88,21 @@ void DesktopShellPlugin::RegisterWithRegistrar(
       });
 
   registrar->AddPlugin(std::move(plugin));
+  OutputDebugStringA("DEBUG_PLUGIN: RegisterWithRegistrar complete\n");
 }
 
 DesktopShellPlugin::DesktopShellPlugin(
     flutter::PluginRegistrarWindows* registrar,
     std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel)
     : registrar_(registrar), channel_(std::move(channel)) {
+  OutputDebugStringA("DEBUG_PLUGIN: DesktopShellPlugin constructor\n");
   channel_->SetMethodCallHandler([this](const auto& call, auto result) {
     HandleMethodCall(call, std::move(result));
   });
 }
 
 DesktopShellPlugin::~DesktopShellPlugin() {
+  OutputDebugStringA("DEBUG_PLUGIN: DesktopShellPlugin destructor\n");
   if (window_proc_id_ != -1) {
     registrar_->UnregisterTopLevelWindowProcDelegate(window_proc_id_);
   }
@@ -319,6 +326,10 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
     UINT message,
     WPARAM wparam,
     LPARAM lparam) {
+  char msg_buf[256];
+  snprintf(msg_buf, sizeof(msg_buf), "DEBUG_PLUGIN_PROC: Message %u, wparam=%llu, lparam=%llu\n", message, (unsigned long long)wparam, (unsigned long long)lparam);
+  OutputDebugStringA(msg_buf);
+  
   // Handle window close interception
   if (message == WM_CLOSE && window_manager_ &&
       window_manager_->IsPreventClose()) {
