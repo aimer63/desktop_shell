@@ -8,9 +8,6 @@
 
 namespace desktop_shell {
 
-// Message ID for tray icon events
-static const UINT kTrayIconMessage = WM_USER + 1;
-
 // Helper function to convert UTF-8 string to wide string using Windows API
 static std::wstring Utf8ToWide(const std::string& utf8) {
   if (utf8.empty()) {
@@ -34,31 +31,11 @@ TrayIcon::~TrayIcon() {
 
 bool TrayIcon::Initialize(HWND hwnd) {
   hwnd_ = hwnd;
-
-  // Register the tray icon message
-  WNDCLASSEXW wc = {};
-  wc.cbSize = sizeof(WNDCLASSEXW);
-  wc.lpfnWndProc = TrayWindowProc;
-  wc.hInstance = GetModuleHandle(nullptr);
-  wc.lpszClassName = L"DesktopShellTrayWindow";
-
-  if (!RegisterClassExW(&wc)) {
-    return false;
-  }
-
-  // Store this pointer for window procedure
-  if (hwnd_) {
-    SetWindowLongPtr(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-  }
-
   return true;
 }
 
 void TrayIcon::SetWindowHandle(HWND hwnd) {
   hwnd_ = hwnd;
-  if (hwnd_) {
-    SetWindowLongPtr(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-  }
 }
 
 bool TrayIcon::SetIcon(const std::string& icon_path) {
@@ -110,7 +87,7 @@ bool TrayIcon::SetIcon(const std::string& icon_path) {
   nid.hWnd = hwnd_;
   nid.uID = 1;
   nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-  nid.uCallbackMessage = kTrayIconMessage;
+  nid.uCallbackMessage = WM_TRAYMESSAGE;
   nid.hIcon = icon_;
 
   // Set tooltip (app name)
@@ -245,8 +222,8 @@ LRESULT CALLBACK TrayIcon::TrayWindowProc(HWND hwnd,
     return DefWindowProc(hwnd, message, wparam, lparam);
   }
 
-  if (message == kTrayIconMessage) {
-    OutputDebugStringA("DEBUG_TRAY_PROC: Got kTrayIconMessage\n");
+  if (message == WM_TRAYMESSAGE) {
+    OutputDebugStringA("DEBUG_TRAY_PROC: Got WM_TRAYMESSAGE\n");
     switch (lparam) {
       case WM_LBUTTONDOWN:
       case WM_RBUTTONDOWN:

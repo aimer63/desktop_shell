@@ -333,6 +333,7 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
   // Handle window close interception
   if (message == WM_CLOSE && window_manager_ &&
       window_manager_->IsPreventClose()) {
+    OutputDebugStringA("DEBUG_PLUGIN_PROC: Handling WM_CLOSE\n");
     // Hide instead of close
     window_manager_->Hide();
 
@@ -342,6 +343,37 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
     }
 
     return 0;  // Prevent default close
+  }
+
+  // Handle tray icon messages
+  if (message == WM_TRAYMESSAGE && tray_icon_) {
+    OutputDebugStringA("DEBUG_PLUGIN_PROC: Handling tray icon message\n");
+    switch (lparam) {
+      case WM_LBUTTONUP:
+      case WM_RBUTTONUP:
+        OutputDebugStringA("DEBUG_PLUGIN_PROC: Tray icon clicked\n");
+        // Notify Flutter
+        if (channel_) {
+          channel_->InvokeMethod("onTrayIconClick", nullptr);
+        }
+        return 0;
+      default:
+        break;
+    }
+  }
+
+  // Handle menu item clicks
+  if (message == WM_COMMAND && tray_icon_) {
+    OutputDebugStringA("DEBUG_PLUGIN_PROC: Handling WM_COMMAND\n");
+    int menu_id = LOWORD(wparam);
+    if (menu_id > 0 && channel_) {
+      flutter::EncodableMap args;
+      args[flutter::EncodableValue("id")] =
+          flutter::EncodableValue(menu_id);
+      channel_->InvokeMethod("onTrayMenuItemClick",
+                           std::make_unique<flutter::EncodableValue>(args));
+      return 0;
+    }
   }
 
   return std::nullopt;  // Let default handling continue

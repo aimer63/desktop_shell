@@ -9,6 +9,9 @@
 #include <string>
 #include <vector>
 
+// Message ID for tray icon events (follows Windows WM_* naming convention)
+#define WM_TRAYMESSAGE (WM_USER + 1)
+
 namespace desktop_shell {
 
 class TrayIcon {
