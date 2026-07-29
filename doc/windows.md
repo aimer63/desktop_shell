@@ -2,107 +2,133 @@
 
 ## Overview
 
-Implement Windows support for desktop_shell with modern visual styles and proper menu behavior. Addresses the two main issues from the original tray_manager plugin.
+Implement Windows support for desktop_shell with modern visual styles and
+proper menu behavior. Addresses the two main issues from the original
+tray_manager plugin.
 
 ## Issues from Original Plugin
 
-Based on tray-manager-fork.md analysis, the original plugin had two critical Windows issues:
+Based on tray-manager-fork.md analysis, the original plugin had two critical
+Windows issues:
 
-### Issue 1: Menu Theme (Ugly, No Theme Support)
+### Issue 1: Menu Theme (Light/Dark Mode Support) ⏳ NOT IMPLEMENTED
 
-**Problem:** The original tray_manager used raw Win32 `TrackPopupMenu()` without enabling visual styles, resulting in:
+**Problem:** The original tray_manager showed menus in light mode even when
+Windows is in dark mode. Menus should follow the system theme preference.
 
-- Windows 95/XP classic appearance
-- No dark mode support
-- No system accent colors
-- No HiDPI awareness
+**Root Cause:** Win32 `TrackPopupMenu()` does not automatically follow the
+system dark mode. Microsoft uses undocumented internal APIs to enable dark
+mode for menus in Explorer and system applications.
 
-**Root Cause:** Visual styles are opt-in on Windows. Without a manifest or activation context, Win32 menus use the classic unthemed look.
+**Proposed Solution:** Use undocumented uxtheme.dll APIs
 
-**Solution:** Enable Visual Styles via manifest
-
-**Implementation:**
-
-Create `windows/runner/app.manifest`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <dependency>
-    <dependentAssembly>
-      <assemblyIdentity
-          type="win32"
-          name="Microsoft.Windows.Common-Controls"
-          version="6.0.0.0"
-          processorArchitecture="*"
-          publicKeyToken="6595b64144ccf1df"
-          language="*" />
-    </dependentAssembly>
-  </dependency>
-</assembly>
-```
-
-Link manifest in `windows/CMakeLists.txt`:
-
-```cmake
-# Enable visual styles for modern menu appearance
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:EMBED /MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/runner/app.manifest")
-```
-
-**Result:**
-
-- Automatic light/dark mode support
-- System accent colors
-- Windows 11 rounded corners
-- HiDPI scaling
-- All modern Windows theming features
-
-### Issue 2: Menu Dismissal (Click Outside Doesn't Close)
-
-**Problem:** The original plugin's menu stayed open when clicking outside of it. Users expect the menu to close when clicking elsewhere on the screen.
-
-**Root Cause:** Incorrect `TrackPopupMenu()` flags and missing focus handling.
-
-**Solution:** Proper TPM flags and window message handling
-
-**Implementation:**
+**Implementation Plan:**
 
 In `windows/desktop_shell_plugin.cpp`:
 
 ```cpp
-// Fix 1: Use correct TrackPopupMenu flags
-TrackPopupMenu(
-  hMenu,
-  TPM_LEFTALIGN | TPM_TOPALIGN |  // Position below tray icon, not above
-  TPM_LEFTBUTTON |               // Respond to left clicks
-  TPM_RIGHTBUTTON,               // Respond to right clicks
-  x, y,
-  0,
-  hwnd,
-  nullptr
-);
+// Dark mode support - undocumented Windows APIs
+enum PreferredAppMode { Default, AllowDark, ForceDark, ForceLight, Max };
+using fnSetPreferredAppMode = PreferredAppMode (WINAPI *)(PreferredAppMode);
+using fnFlushMenuThemes = void (WINAPI *)();
 
-// Fix 2: Handle WM_KILLFOCUS in window procedure
-case WM_KILLFOCUS:
-  // Close menu when window loses focus
-  if (menuOpen) {
-    EndMenu();
-    menuOpen = false;
-  }
-  break;
+static void InitDarkMode() {
+  HMODULE hUxtheme = LoadLibraryExW(L"uxtheme.dll", nullptr,
+      LOAD_LIBRARY_SEARCH_SYSTEM32);
+  if (hUxtheme) {
+    auto setPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(
+        GetProcAddress(hUxtheme, MAKEINTRESOURCEA(135)));
+    auto flushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(
+        GetProcAddress(hUxtheme, MAKEINTRESOURCEA(136)));
 
-// Fix 3: Handle WM_ACTIVATEAPP
-case WM_ACTIVATEAPP:
-  if (!wParam) {  // App being deactivated
-    if (menuOpen) {
-      EndMenu();
-      menuOpen = false;
+    if (setPreferredAppMode && flushMenuThemes && IsSystemDarkMode()) {
+      setPreferredAppMode(AllowDark);
+      flushMenuThemes();
     }
   }
-  break;
+}
 ```
 
-**Alternative approach:** Use `TPM_NONOTIFY` and handle all messages manually for full control.
+Call `InitDarkMode()` during plugin registration before creating any menus.
+
+**Sequence:**
+
+```
+Plugin initialization
+      |
+      ▼
+SetPreferredAppMode(AllowDark)  [if system is dark]
+      |
+      ▼
+FlushMenuThemes()
+      |
+      ▼
+CreatePopupMenu() / TrackPopupMenu()
+      |
+      ▼
+Menu follows system theme
+```
+
+**Required APIs from uxtheme.dll:**
+
+- `SetPreferredAppMode()` - ordinal 135
+- `FlushMenuThemes()` - ordinal 136
+
+**Note:** These are undocumented APIs. They work on Windows 10 1809+ and
+Windows 11, but may change in future Windows versions. This is the same
+approach used by Microsoft Explorer and other system apps.
+
+**Status:** Implementation planned but not yet coded or tested.
+
+### Issue 2: Menu Dismissal (Click Outside Doesn't Close) ✅ SOLVED
+
+**Problem:** The original plugin's menu stayed open when clicking outside of
+it. Users expect the menu to close when clicking elsewhere on the screen.
+
+**Root Cause:** Missing `SetForegroundWindow()` call before showing the menu.
+Without this, the menu doesn't have proper focus context and won't dismiss
+when clicking outside.
+
+**Solution:** Call `SetForegroundWindow()` before `TrackPopupMenu()`
+
+**Implementation:**
+
+In `windows/tray/tray_icon.cpp`:
+
+```cpp
+bool TrayIcon::PopUpContextMenu() {
+  // ... create menu ...
+  
+  // Get cursor position
+  POINT pt;
+  GetCursorPos(&pt);
+  
+  // CRITICAL: Set foreground window before showing menu
+  // This ensures the menu closes when clicking outside
+  SetForegroundWindow(hwnd_);
+  
+  // Show menu
+  TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON,
+                 pt.x, pt.y, 0, hwnd_, nullptr);
+  
+  DestroyMenu(hMenu);
+  return true;
+}
+```
+
+**Why this works:**
+When `SetForegroundWindow()` is called before `TrackPopupMenu()`, Windows
+automatically manages menu dismissal. The menu receives proper focus and will
+close when:
+
+- Clicking outside the menu
+- Clicking on another window
+- Pressing Escape
+- Window losing focus
+
+**Note:** The document previously mentioned handling `WM_KILLFOCUS` and
+`WM_ACTIVATEAPP` manually, but this is not required when using the
+`SetForegroundWindow()` pattern.
 
 ## File Structure
 
@@ -144,7 +170,9 @@ add_library(${PLUGIN_NAME} SHARED
 )
 
 # Enable visual styles
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:EMBED /MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/runner/app.manifest")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}
+  /MANIFEST:EMBED
+  /MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/runner/app.manifest")
 
 # Apply standard settings
 apply_standard_settings(${PLUGIN_NAME})
@@ -372,7 +400,8 @@ void DesktopShellPlugin::HandleMethodCall(
     window_manager_->Focus();
     result->Success();
   } else if (method == "setPreventClose") {
-    const auto* args = std::get_if<flutter::EncodableMap>(method_call.arguments());
+    const auto* args = std::get_if<flutter::EncodableMap>(
+        method_call.arguments());
     if (args) {
       auto it = args->find(flutter::EncodableValue("prevent"));
       if (it != args->end()) {
@@ -391,19 +420,19 @@ void DesktopShellPlugin::HandleMethodCall(
 
 ## Testing Checklist
 
-### Visual Styles
+### Visual Styles ⏳
 
-- [ ] Menu appears with modern Windows 10/11 styling
+- [x] Menu appears with modern Windows 10/11 styling
 - [ ] Menu respects system light/dark theme
-- [ ] Menu uses system accent color
-- [ ] Menu renders correctly on HiDPI displays
+- [x] Menu uses system accent color
+- [x] Menu renders correctly on HiDPI displays
 
-### Menu Dismissal
+### Menu Dismissal ✅ (Solved via SetForegroundWindow)
 
-- [ ] Menu closes when clicking outside
-- [ ] Menu closes when clicking on another window
-- [ ] Menu closes when pressing Escape
-- [ ] Menu closes when app loses focus
+- [x] Menu closes when clicking outside
+- [x] Menu closes when clicking on another window
+- [x] Menu closes when pressing Escape
+- [x] Menu closes when app loses focus
 
 ### Functionality
 
@@ -416,13 +445,22 @@ void DesktopShellPlugin::HandleMethodCall(
 
 ## Notes
 
-1. **Visual Styles:** The manifest approach is the standard Windows way to enable modern theming. It requires no code changes beyond adding the manifest file and linker flag.
+1. **Menu Theme:** Planned to use undocumented `SetPreferredAppMode()` and
+   `FlushMenuThemes()` APIs from uxtheme.dll. These are internal Windows
+   APIs (ordinal 135 and 136) used by Microsoft Explorer. While
+   undocumented, they are the only way to enable dark mode for Win32
+   context menus. Not yet implemented.
 
-2. **Menu Dismissal:** The combination of `SetForegroundWindow()` before `TrackPopupMenu()` and handling `WM_KILLFOCUS`/`WM_ACTIVATEAPP` ensures proper menu behavior.
+2. **Menu Dismissal:** Calling `SetForegroundWindow()` before
+   `TrackPopupMenu()` is the standard Windows pattern for proper menu
+   dismissal. Windows automatically handles all dismissal cases without
+   needing manual message handling.
 
-3. **Single Instance:** Consider using a mutex for single-instance enforcement on Windows.
+3. **Single Instance:** Consider using a mutex for single-instance enforcement
+   on Windows.
 
-4. **Icon Format:** Windows uses `.ico` files. Ensure the example app includes a proper icon resource.
+4. **Icon Format:** Windows uses `.ico` files. Ensure the example app includes
+   a proper icon resource.
 
 ## References
 
