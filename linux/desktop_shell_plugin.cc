@@ -233,11 +233,11 @@ static void method_call_cb(FlMethodChannel* channel,
     response = handle_set_tray_menu(self, args);
   } else if (strcmp(method, "popUpTrayMenu") == 0) {
     response = handle_pop_up_tray_menu(self);
-  } else if (strcmp(method, "show") == 0) {
+  } else if (strcmp(method, "showWindow") == 0) {
     response = handle_show(self);
-  } else if (strcmp(method, "hide") == 0) {
+  } else if (strcmp(method, "hideWindow") == 0) {
     response = handle_hide(self);
-  } else if (strcmp(method, "focus") == 0) {
+  } else if (strcmp(method, "focusWindow") == 0) {
     response = handle_focus(self);
   } else if (strcmp(method, "setPreventClose") == 0) {
     response = handle_set_prevent_close(self, args);

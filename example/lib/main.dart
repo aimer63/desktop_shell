@@ -17,7 +17,7 @@ void main() async {
     ],
     onWindowClose: (s) async {
       // Hide window to tray instead of closing
-      await s.hide();
+      await s.hideWindow();
     },
     onTrayIconClick: (s) async {
       // On Windows/macOS: this shows the context menu
@@ -27,8 +27,8 @@ void main() async {
     onTrayMenuItemClick: (s, item) async {
       switch (item.key) {
         case 'show':
-          await s.show();
-          await s.focus();
+          await s.showWindow();
+          await s.focusWindow();
         case 'quit':
           await s.destroy();
           exit(0);
@@ -77,21 +77,21 @@ class _MyHomePageState extends State<MyHomePage> {
   String _status = 'Window is visible';
 
   Future<void> _showWindow() async {
-    final result = await widget.shell.show();
+    final result = await widget.shell.showWindow();
     result.map((_) {
       setState(() => _status = 'Window is visible');
     });
   }
 
   Future<void> _hideWindow() async {
-    final result = await widget.shell.hide();
+    final result = await widget.shell.hideWindow();
     result.map((_) {
       setState(() => _status = 'Window is hidden (check tray)');
     });
   }
 
   Future<void> _focusWindow() async {
-    final result = await widget.shell.focus();
+    final result = await widget.shell.focusWindow();
     result.map((_) {
       setState(() => _status = 'Window is focused');
     });

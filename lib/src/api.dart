@@ -83,13 +83,13 @@ abstract class DesktopShell {
   Future<Result<(), TrayPopupError>> popUpTrayMenu();
 
   /// Show window from tray.
-  Future<Result<(), WindowShowError>> show();
+  Future<Result<(), WindowShowError>> showWindow();
 
   /// Hide window to tray.
-  Future<Result<(), WindowHideError>> hide();
+  Future<Result<(), WindowHideError>> hideWindow();
 
   /// Focus window.
-  Future<Result<(), WindowFocusError>> focus();
+  Future<Result<(), WindowFocusError>> focusWindow();
 
   /// Set prevent close flag.
   Future<Result<(), WindowPreventCloseError>> setPreventClose(bool prevent);
@@ -234,13 +234,13 @@ final class _DesktopShellImpl implements DesktopShell {
   }
 
   @override
-  Future<Result<(), WindowShowError>> show() async {
+  Future<Result<(), WindowShowError>> showWindow() async {
     if (_isDestroyed) {
       return const Err(WindowShowError('Shell has been destroyed'));
     }
 
     try {
-      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>('show');
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>('showWindow');
 
       if (result == null) {
         return const Err(WindowShowError('Native returned null'));
@@ -262,13 +262,13 @@ final class _DesktopShellImpl implements DesktopShell {
   }
 
   @override
-  Future<Result<(), WindowHideError>> hide() async {
+  Future<Result<(), WindowHideError>> hideWindow() async {
     if (_isDestroyed) {
       return const Err(WindowHideError('Shell has been destroyed'));
     }
 
     try {
-      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>('hide');
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>('hideWindow');
 
       if (result == null) {
         return const Err(WindowHideError('Native returned null'));
@@ -290,14 +290,14 @@ final class _DesktopShellImpl implements DesktopShell {
   }
 
   @override
-  Future<Result<(), WindowFocusError>> focus() async {
+  Future<Result<(), WindowFocusError>> focusWindow() async {
     if (_isDestroyed) {
       return const Err(WindowFocusError('Shell has been destroyed'));
     }
 
     try {
       final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
-        'focus',
+        'focusWindow',
       );
 
       if (result == null) {

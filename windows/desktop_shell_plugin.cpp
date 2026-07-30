@@ -259,7 +259,7 @@ void DesktopShellPlugin::HandleMethodCall(
         create_error_response("Failed to show context menu", "POPUP_FAILED");
       }
 
-    } else if (method == "show") {
+    } else if (method == "showWindow") {
       if (!window_manager_) {
         create_error_response("Window manager not initialized", "WINDOW_MANAGER_NOT_INITIALIZED");
         return;
@@ -271,7 +271,7 @@ void DesktopShellPlugin::HandleMethodCall(
         create_error_response("Failed to show window", "SHOW_FAILED");
       }
 
-    } else if (method == "hide") {
+    } else if (method == "hideWindow") {
       if (!window_manager_) {
         create_error_response("Window manager not initialized", "WINDOW_MANAGER_NOT_INITIALIZED");
         return;
@@ -283,7 +283,7 @@ void DesktopShellPlugin::HandleMethodCall(
         create_error_response("Failed to hide window", "HIDE_FAILED");
       }
 
-    } else if (method == "focus") {
+    } else if (method == "focusWindow") {
       if (!window_manager_) {
         create_error_response("Window manager not initialized", "WINDOW_MANAGER_NOT_INITIALIZED");
         return;
