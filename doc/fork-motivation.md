@@ -1,4 +1,4 @@
-# tray_manager Fork Plan
+# Fork motivation
 
 ## Motivation
 
@@ -21,7 +21,10 @@ a unified, plugin.
 ### Linux: Deprecated API
 
 **Problem:** Uses deprecated `libappindicator`.
-**Status:** Future migration to `libappindicator_glib` planned.
+**Status:** Need to decide migration path:
+
+- Option 1: `libayatana-appindicator-glib` (easier migration, current compatibility)
+- Option 2: StatusNotifierItem (DBus protocol, future-proof but more complex)
 
 ## Why Merge with window_manager
 
@@ -40,6 +43,8 @@ a unified, plugin.
 - Always on top
 - Window transparency
 - Multi-window support
+
+> **_Note:_ We consider reintroducing features in future**
 
 ## Scope
 

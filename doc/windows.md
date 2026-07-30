@@ -83,6 +83,7 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
 ```
 
 **How it works:**
+
 - `WM_SETTINGCHANGE` - Windows sends this when system settings change
 - `lParam` - Contains pointer to string indicating what changed
 - `"ImmersiveColorSet"` - This string means light/dark mode was toggled
