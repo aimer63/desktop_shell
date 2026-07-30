@@ -36,14 +36,14 @@ static void InitDarkMode() {
   HMODULE hUxtheme = LoadLibraryExW(L"uxtheme.dll", nullptr,
       LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (hUxtheme) {
-    auto setPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(
+    auto SetPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(
         GetProcAddress(hUxtheme, MAKEINTRESOURCEA(135)));
-    auto flushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(
+    auto FlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(
         GetProcAddress(hUxtheme, MAKEINTRESOURCEA(136)));
 
-    if (setPreferredAppMode && flushMenuThemes && IsSystemDarkMode()) {
-      setPreferredAppMode(AllowDark);
-      flushMenuThemes();
+    if (SetPreferredAppMode && FlushMenuThemes) {
+      SetPreferredAppMode(AllowDark);  // Allow dark, follows system theme
+      FlushMenuThemes();
     }
   }
 }
@@ -57,7 +57,7 @@ Call `InitDarkMode()` during plugin registration before creating any menus.
 Plugin initialization
       |
       ▼
-SetPreferredAppMode(AllowDark)  [if system is dark]
+SetPreferredAppMode(AllowDark)  // Allows dark mode, follows system
       |
       ▼
 FlushMenuThemes()
@@ -66,8 +66,14 @@ FlushMenuThemes()
 CreatePopupMenu() / TrackPopupMenu()
       |
       ▼
-Menu follows system theme
+Menu follows system theme automatically
 ```
+
+**Behavior:**
+
+- `AllowDark` - Menus follow system theme (dark when system is dark, light when light)
+- `ForceDark` - Always dark regardless of system theme
+- `ForceLight` - Always light regardless of system theme
 
 **Required APIs from uxtheme.dll:**
 
