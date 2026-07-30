@@ -365,13 +365,13 @@ final result = await DesktopShell.initialize(
     MenuItem.separator(),
     MenuItem(key: 'quit', label: 'Quit'),
   ],
-  onWindowClose: (shell) async => await shell.hide(),
+  onWindowClose: (shell) async => await shell.hideWindow(),
   onTrayIconClick: (shell) async {},  // Linux: no-op
   onTrayMenuItemClick: (shell, item) async {
     switch (item.key) {
       case 'show':
-        await shell.show();
-        await shell.focus();
+        await shell.showWindow();
+        await shell.focusWindow();
       case 'quit':
         await shell.destroy();
         exit(0);

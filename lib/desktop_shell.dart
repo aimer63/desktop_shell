@@ -16,25 +16,22 @@
 ///         ? 'assets/icon.ico'
 ///         : 'assets/icon.png',
 ///     trayItems: [
-///       MenuItem(
-///         key: 'show',
-///         label: 'Open',
-///         onClick: (item) async {
+///       MenuItem(key: 'show', label: 'Open'),
+///       MenuItem.separator(),
+///       MenuItem(key: 'quit', label: 'Quit'),
+///     ],
+///     onWindowClose: (shell) async => await shell.hideWindow(),
+///     onTrayIconClick: (shell) async {},
+///     onTrayMenuItemClick: (shell, item) async {
+///       switch (item.key) {
+///         case 'show':
 ///           await shell.showWindow();
 ///           await shell.focusWindow();
-///         },
-///       ),
-///       MenuItem.separator(),
-///       MenuItem(
-///         key: 'quit',
-///         label: 'Quit',
-///         onClick: (item) async {
+///         case 'quit':
 ///           await shell.destroy();
 ///           exit(0);
-///         },
-///       ),
-///     ],
-///     onWindowClose: (shell) => shell.hideWindow(),
+///       }
+///     },
 ///   );
 ///
 ///   switch (result) {
