@@ -9,8 +9,11 @@ namespace desktop_shell {
 
 class WindowManager {
  public:
-  explicit WindowManager(HWND hwnd);
+  WindowManager();
   ~WindowManager();
+
+  // Set the window handle (called after construction when window is available).
+  void SetWindowHandle(HWND hwnd);
 
   // Disallow copy and assign.
   WindowManager(const WindowManager&) = delete;

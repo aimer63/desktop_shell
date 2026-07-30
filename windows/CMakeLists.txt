@@ -8,7 +8,6 @@ set(PLUGIN_NAME "desktop_shell_plugin")
 
 add_library(${PLUGIN_NAME} SHARED
   "desktop_shell_plugin.cpp"
-  "desktop_shell_plugin.h"
   "tray/tray_icon.cpp"
   "tray/tray_icon.h"
   "window/window_manager.cpp"
@@ -20,8 +19,8 @@ set_target_properties(${PLUGIN_NAME} PROPERTIES
   CXX_VISIBILITY_PRESET hidden)
 target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
 
-target_include_directories(${PLUGIN_NAME} INTERFACE
-  "${CMAKE_CURRENT_SOURCE_DIR}"
+target_include_directories(${PLUGIN_NAME} PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)

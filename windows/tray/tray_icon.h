@@ -9,6 +9,9 @@
 #include <string>
 #include <vector>
 
+// Message ID for tray icon events (follows Windows WM_* naming convention)
+#define WM_TRAYMESSAGE (WM_USER + 1)
+
 namespace desktop_shell {
 
 class TrayIcon {
@@ -23,6 +26,9 @@ class TrayIcon {
   // Initialize with parent window handle.
   bool Initialize(HWND hwnd);
 
+  // Set the window handle (called after construction when window is available).
+  void SetWindowHandle(HWND hwnd);
+
   // Set the tray icon from file path.
   bool SetIcon(const std::string& icon_path);
 
@@ -36,12 +42,6 @@ class TrayIcon {
   bool Destroy();
 
  private:
-  // Window procedure for tray messages.
-  static LRESULT CALLBACK TrayWindowProc(HWND hwnd,
-                                         UINT message,
-                                         WPARAM wparam,
-                                         LPARAM lparam);
-
   flutter::MethodChannel<flutter::EncodableValue>* channel_;
   HWND hwnd_;
   HICON icon_;

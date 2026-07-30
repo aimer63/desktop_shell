@@ -1,25 +1,34 @@
 #include "window_manager.h"
 
+#include <windows.h>
 #include <flutter/standard_method_codec.h>
 
 namespace desktop_shell {
 
-WindowManager::WindowManager(HWND hwnd) : hwnd_(hwnd) {}
+WindowManager::WindowManager() : hwnd_(nullptr) {
+}
 
-WindowManager::~WindowManager() = default;
+WindowManager::~WindowManager() {
+}
+
+void WindowManager::SetWindowHandle(HWND hwnd) {
+  hwnd_ = hwnd;
+}
 
 bool WindowManager::Show() {
   if (!hwnd_) {
     return false;
   }
-  return ShowWindow(hwnd_, SW_SHOW) != 0;
+  BOOL result = ShowWindow(hwnd_, SW_SHOW);
+  return result != 0;
 }
 
 bool WindowManager::Hide() {
   if (!hwnd_) {
     return false;
   }
-  return ShowWindow(hwnd_, SW_HIDE) != 0;
+  BOOL result = ShowWindow(hwnd_, SW_HIDE);
+  return result != 0;
 }
 
 bool WindowManager::Focus() {
@@ -59,7 +68,8 @@ bool WindowManager::Destroy() {
   if (!hwnd_) {
     return false;
   }
-  return DestroyWindow(hwnd_) != 0;
+  BOOL result = DestroyWindow(hwnd_);
+  return result != 0;
 }
 
 }  // namespace desktop_shell

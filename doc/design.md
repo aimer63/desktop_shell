@@ -146,6 +146,45 @@ because:
 - Delete event handler for intercepting close
 - Simple boolean state for prevent_close
 
+## Windows Architecture
+
+Windows uses C++ classes instead of GObject. Key differences from Linux:
+
+### Window Handle Acquisition
+
+Linux gets window during plugin registration; Windows defers to `initialize`
+call:
+
+```cpp
+// Windows: Get HWND when Flutter view is ready
+HWND hwnd = ::GetAncestor(registrar->GetView()->GetNativeWindow(), GA_ROOT);
+```
+
+### Message Handling
+
+Windows uses `HandleWindowMessage` delegate instead of GTK signals:
+
+```cpp
+// Register with Flutter's window proc chain
+plugin->window_proc_id_ = registrar->RegisterTopLevelWindowProcDelegate(
+    [plugin_ptr](HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
+      return plugin_ptr->HandleWindowMessage(hwnd, message, wparam, lparam);
+    });
+```
+
+Handles:
+
+- `WM_CLOSE` - Intercept close button
+- `WM_TRAYMESSAGE` - Tray icon clicks (custom message)
+- `WM_COMMAND` - Menu item clicks (sequential IDs 1024+)
+
+### Menu IDs
+
+Sequential IDs starting at 1024 (not hashCode):
+
+- Avoids 16-bit overflow (Win32 WM_COMMAND limitation)
+- Prevents collision with system menu indices (< 1024)
+
 ## Lifecycle Management
 
 ### Plugin Creation
@@ -232,18 +271,36 @@ final class TrayIconError extends DesktopShellError {
 }
 ```
 
-**Native responses:** All methods return Map with `success`, `message`, and
-optional `code`:
+**Native responses:** All methods return Map with `success`, `message`
+(always "OK" on success), and optional `code`:
 
 ```cpp
 // Success
-fl_value_set_string(response, "success", fl_value_new_bool(true));
+{"success": true, "message": "OK"}
 
 // Error
-fl_value_set_string(response, "success", fl_value_new_bool(false));
-fl_value_set_string(response, "code", fl_value_new_string("FILE_NOT_FOUND"));
-fl_value_set_string(response, "message", fl_value_new_string("Icon not found"));
+{"success": false, "message": "Missing iconPath", "code": "MISSING_ICONPATH"}
 ```
+
+### Error Codes
+
+| Code | Description | Platform |
+| ---- | ----------- | -------- |
+| `TRAY_NOT_INITIALIZED` | Tray manager not created | Both |
+| `WINDOW_MANAGER_NOT_INITIALIZED` | Window manager not created | Both |
+| `INVALID_ARGS` | Arguments null or wrong type | Both |
+| `MISSING_ICONPATH` | iconPath field missing/invalid | Both |
+| `MISSING_MENU` | menu field missing/invalid | Both |
+| `MISSING_PREVENT_FLAG` | prevent field missing/invalid | Both |
+| `SET_ICON_FAILED` | Failed to set tray icon | Both |
+| `SET_MENU_FAILED` | Failed to set tray menu | Both |
+| `SHOW_FAILED` | Failed to show window | Both |
+| `HIDE_FAILED` | Failed to hide window | Both |
+| `FOCUS_FAILED` | Failed to focus window | Both |
+| `SET_PREVENT_CLOSE_FAILED` | Failed to set prevent close | Both |
+| `GET_HWND_FAILED` | Failed to get window handle | Windows |
+| `POPUP_FAILED` | Failed to show context menu | Windows |
+| `EXCEPTION` | C++ exception caught | Windows |
 
 ## Platform Channel Protocol
 
@@ -277,12 +334,13 @@ fl_value_set_string(response, "message", fl_value_new_string("Icon not found"));
 All callbacks required in `initialize()`:
 
 ```dart
-Future<Result<DesktopShell, DesktopShellError>> initialize({
+static Future<Result<DesktopShell, DesktopShellError>> initialize({
   required String trayIcon,
   required List<MenuItem> trayItems,
-  required void Function(DesktopShell) onWindowClose,
-  required void Function(DesktopShell) onTrayIconClick,
-  required void Function(DesktopShell, MenuItem) onTrayMenuItemClick,
+  required void Function(DesktopShell shell) onWindowClose,
+  required void Function(DesktopShell shell) onTrayIconClick,
+  required void Function(DesktopShell shell, MenuItem item)
+    onTrayMenuItemClick,
 }) async
 ```
 
@@ -300,7 +358,7 @@ Future<Result<DesktopShell, DesktopShellError>> initialize({
 ### Initialization
 
 ```dart
-final result = await initialize(
+final result = await DesktopShell.initialize(
   trayIcon: 'assets/icon.png',
   trayItems: [
     MenuItem(key: 'show', label: 'Show Window'),
@@ -376,14 +434,16 @@ final class MenuItem {
 | **Windows** | `TrackPopupMenu(hMenu, x, y)` | Must call in `onTrayIconClick` |
 | **macOS** | `performClick()` on statusItem | Must call in `onTrayIconClick` |
 
+**Note:** On Linux this method returns `Ok(())` immediately without doing
+anything.
+
 ### `setPreventClose()`
 
 **Not called automatically in initialize().** User must explicitly call:
 
 ```dart
 final result = await initialize(...);
-if (result case Ok(:final value)) {
-  final shell = value;
+if (result case Ok(value: final shell)) {
   await shell.setPreventClose(true);  // User decides
 }
 ```
@@ -394,90 +454,23 @@ This flexibility supports:
 - Window-only apps (no tray)
 - Mixed use cases
 
-## CMake Configuration
+## Build Configuration
 
-### apply_standard_settings Function
+Both Linux and Windows use CMake. The plugin CMakeLists.txt files reference
+functions and variables from the app's CMakeLists.txt.
 
-**Where defined:** Flutter SDK template
-**File:** `flutter_tools/templates/app/linux.tmpl/CMakeLists.txt.tmpl`
-**Lines:** 42-47
+### CMake Configuration
 
-```cmake
-function(APPLY_STANDARD_SETTINGS TARGET)
-  target_compile_features(${TARGET} PUBLIC cxx_std_14)
-  target_compile_options(${TARGET} PRIVATE -Wall -Werror)
-  target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
-  target_compile_definitions(${TARGET} PRIVATE
-    "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
-endfunction()
-```
+**CRITICAL:** The `apply_standard_settings()` function is called in the plugin
+but defined in your **app's** `linux/CMakeLists.txt` (not this plugin's). It is
+generated by `flutter create --platforms=linux`. If you manually created the
+CMake files, you must either recreate the app with Flutter or manually copy
+the function from the Flutter SDK template.
 
-**What it does:**
-
-- Sets C++14 standard
-- Enables all warnings (`-Wall`)
-- Treats warnings as errors (`-Werror`)
-- Sets optimization to O3 for release builds
-- Defines NDEBUG for release builds
-
-**Why plugins use it:**
-Flutter comment in template (lines 38-41):
-> "Be cautious about adding new options here, as plugins use this function by
-> default. In most cases, you should add new options to specific targets instead
-> of modifying this function."
-
-**Usage in plugin CMakeLists.txt:**
+**Linux example:**
 
 ```cmake
-apply_standard_settings(${PLUGIN_NAME})
-```
-
-**Availability:**
-
-- Function is defined in app's `linux/CMakeLists.txt`
-- Plugin CMakeLists.txt is subdirectory'd from app
-- Function available in parent scope
-- Standard Flutter plugin contract
-
-**When the function is generated:**
-
-The `apply_standard_settings` function is created during `flutter create`:
-
-**Step 1: `flutter create --platforms=linux my_app`**
-
-- Flutter copies template files from SDK
-- Template: `flutter_tools/templates/app/linux.tmpl/CMakeLists.txt.tmpl`
-- Generates app's `linux/CMakeLists.txt` with function definition
-
-**Step 2: Build process**
-
-```
-flutter build linux
-    ↓
-App CMakeLists.txt processes first
-    ↓
-Function apply_standard_settings defined
-    ↓
-add_subdirectory(plugin/linux) called
-    ↓
-Plugin CMakeLists.txt processes
-    ↓
-Plugin calls apply_standard_settings()
-```
-
-**Important:** This function only exists if the app was created with
-`flutter create --platforms=linux`. Manually created CMake files will lack it.
-
-### Requirements
-
-- `libappindicator3-dev` or `libayatana-appindicator3-dev`
-- `pkg-config` for library detection
-- GTK3 development files
-
-### Key Settings
-
-```cmake
-# Use Flutter's standard settings
+# Use Flutter's standard settings (defined in app's linux/CMakeLists.txt)
 apply_standard_settings(${PLUGIN_NAME})
 
 # Disable deprecated warnings for appindicator
@@ -498,6 +491,67 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE
   PkgConfig::GTK
 )
 ```
+
+### Linux (CMake)
+
+Uses CMake with `apply_standard_settings` from Flutter SDK template.
+
+**Plugin structure:**
+
+```
+linux/
+├── CMakeLists.txt                  # Build configuration
+├── desktop_shell_plugin.cc         # Main plugin (GObject, method routing)
+├── desktop_shell_plugin.h          # Plugin header
+├── include/
+│   └── desktop_shell/
+│       └── desktop_shell_plugin.h  # Public C header
+├── tray/
+│   ├── tray_manager.cc             # AppIndicator implementation
+│   └── tray_manager.h
+└── window/
+    ├── window_manager.cc           # GTK window implementation
+    └── window_manager.h
+```
+
+**Requirements:**
+
+- `libappindicator3-dev` or `libayatana-appindicator3-dev`
+- `pkg-config` for library detection
+- GTK3 development files
+
+### Windows (CMake)
+
+Uses standard Flutter Windows plugin template with CMake.
+
+**Plugin structure:**
+
+```
+windows/
+├── desktop_shell_plugin.cpp    # Main plugin
+│   #   (HandleMethodCall, HandleWindowMessage)
+├── desktop_shell_plugin.h      # C export header
+├── include/
+│   └── desktop_shell/
+│       └── desktop_shell_plugin.h  # Public C header
+├── tray/
+│   ├── tray_icon.cpp           # Shell_NotifyIcon implementation
+│   └── tray_icon.h
+└── window/
+    ├── window_manager.cpp      # ShowWindow, SetForegroundWindow
+    └── window_manager.h
+```
+
+**Requirements:**
+
+- Windows SDK
+- Visual Studio 2019 or later (or Build Tools)
+
+**Build settings:**
+
+- Links against standard Windows libraries (shell32, user32, gdi32)
+- Uses Common Controls v6 for modern menu theming (manifest)
+- Standard C++17
 
 ## Testing Strategy
 
@@ -521,10 +575,9 @@ Use example app to verify:
 
 ## Known Limitations
 
-1. **Linux only** - Windows and macOS need separate implementations
-2. **Single tray** - One tray icon per app instance
-3. **AppIndicator deprecated** - Future: migrate to StatusNotifierItem
-4. **No multi-monitor awareness** - Tray appears on primary
+1. **Single tray** - One tray icon per app instance
+2. **AppIndicator deprecated** - Future: migrate to StatusNotifierItem
+3. **No multi-monitor awareness** - Tray appears on primary
 
 ## References
 
@@ -532,3 +585,5 @@ Use example app to verify:
 - window_manager: `/home/aimer/devel/flutter/window_manager`
 - GObject documentation: <https://docs.gtk.org/gobject/>
 - Flutter Linux plugins: <https://docs.flutter.dev/desktop#linux>
+- Win32 Shell API: <https://learn.microsoft.com/en-us/windows/win32/api/shellapi/>
+- Flutter Windows plugins: <https://docs.flutter.dev/desktop#windows>
