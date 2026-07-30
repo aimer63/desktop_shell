@@ -8,6 +8,28 @@
 #include "tray/tray_icon.h"
 #include "window/window_manager.h"
 
+// Dark mode support - undocumented Windows APIs
+// These are internal APIs used by Microsoft Explorer and system apps
+enum PreferredAppMode { Default, AllowDark, ForceDark, ForceLight, Max };
+using fnSetPreferredAppMode = PreferredAppMode (WINAPI *)(PreferredAppMode);
+using fnFlushMenuThemes = void (WINAPI *)();
+
+static void InitDarkMode() {
+  HMODULE hUxtheme = LoadLibraryExW(L"uxtheme.dll", nullptr,
+      LOAD_LIBRARY_SEARCH_SYSTEM32);
+  if (hUxtheme) {
+    auto SetPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(
+        GetProcAddress(hUxtheme, MAKEINTRESOURCEA(135)));
+    auto FlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(
+        GetProcAddress(hUxtheme, MAKEINTRESOURCEA(136)));
+
+    if (SetPreferredAppMode && FlushMenuThemes) {
+      SetPreferredAppMode(AllowDark);  // Allow dark, follows system theme
+      FlushMenuThemes();
+    }
+  }
+}
+
 namespace desktop_shell {
 
 // Forward declarations
@@ -60,6 +82,9 @@ class DesktopShellPlugin : public flutter::Plugin {
 // static
 void DesktopShellPlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows* registrar) {
+  
+  // Initialize dark mode support for menus
+  InitDarkMode();
   
   auto channel =
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
