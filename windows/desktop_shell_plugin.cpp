@@ -15,19 +15,28 @@ enum PreferredAppMode { Default, AllowDark, ForceDark, ForceLight, Max };
 using fnSetPreferredAppMode = PreferredAppMode (WINAPI *)(PreferredAppMode);
 using fnFlushMenuThemes = void (WINAPI *)();
 
+// Store function pointer for runtime theme changes
+static fnFlushMenuThemes g_FlushMenuThemes = nullptr;
+
 static void Init() {
   HMODULE hUxtheme = LoadLibraryExW(L"uxtheme.dll", nullptr,
       LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (hUxtheme) {
     auto SetPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(
         GetProcAddress(hUxtheme, MAKEINTRESOURCEA(135)));
-    auto FlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(
+    g_FlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(
         GetProcAddress(hUxtheme, MAKEINTRESOURCEA(136)));
 
-    if (SetPreferredAppMode && FlushMenuThemes) {
+    if (SetPreferredAppMode && g_FlushMenuThemes) {
       SetPreferredAppMode(AllowDark);  // Allow dark, follows system theme
-      FlushMenuThemes();
+      g_FlushMenuThemes();
     }
+  }
+}
+
+static void Refresh() {
+  if (g_FlushMenuThemes) {
+    g_FlushMenuThemes();  // Re-flush when theme changes at runtime
   }
 }
 }
@@ -338,7 +347,17 @@ std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
     UINT message,
     WPARAM wparam,
     LPARAM lparam) {
-  
+
+  // Handle theme changes at runtime
+  if (message == WM_SETTINGCHANGE && lparam) {
+    // lParam points to string indicating what changed
+    // "ImmersiveColorSet" = light/dark mode toggle
+    if (wcscmp(reinterpret_cast<LPCWSTR>(lparam),
+               L"ImmersiveColorSet") == 0) {
+      DarkMode::Refresh();  // Refresh menu theming
+    }
+  }
+
   // Handle window close interception
   if (message == WM_CLOSE && window_manager_ &&
       window_manager_->IsPreventClose()) {

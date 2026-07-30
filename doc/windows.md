@@ -11,7 +11,7 @@ tray_manager plugin.
 Based on tray-manager-fork.md analysis, the original plugin had two critical
 Windows issues:
 
-### Issue 1: Menu Theme (Light/Dark Mode Support) ⏳ NOT IMPLEMENTED
+### Issue 1: Menu Theme (Light/Dark Mode Support) ✅ SOLVED
 
 **Problem:** The original tray_manager showed menus in light mode even when
 Windows is in dark mode. Menus should follow the system theme preference.
@@ -20,36 +20,73 @@ Windows is in dark mode. Menus should follow the system theme preference.
 system dark mode. Microsoft uses undocumented internal APIs to enable dark
 mode for menus in Explorer and system applications.
 
-**Proposed Solution:** Use undocumented uxtheme.dll APIs
+**Solution:** Use undocumented uxtheme.dll APIs
 
-**Implementation Plan:**
+**Implementation:**
 
 In `windows/desktop_shell_plugin.cpp`:
 
 ```cpp
 // Dark mode support - undocumented Windows APIs
+namespace DarkMode {
 enum PreferredAppMode { Default, AllowDark, ForceDark, ForceLight, Max };
 using fnSetPreferredAppMode = PreferredAppMode (WINAPI *)(PreferredAppMode);
 using fnFlushMenuThemes = void (WINAPI *)();
 
-static void InitDarkMode() {
+// Store function pointer for runtime theme changes
+static fnFlushMenuThemes g_FlushMenuThemes = nullptr;
+
+static void Init() {
   HMODULE hUxtheme = LoadLibraryExW(L"uxtheme.dll", nullptr,
       LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (hUxtheme) {
     auto SetPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(
         GetProcAddress(hUxtheme, MAKEINTRESOURCEA(135)));
-    auto FlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(
+    g_FlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(
         GetProcAddress(hUxtheme, MAKEINTRESOURCEA(136)));
 
-    if (SetPreferredAppMode && FlushMenuThemes) {
+    if (SetPreferredAppMode && g_FlushMenuThemes) {
       SetPreferredAppMode(AllowDark);  // Allow dark, follows system theme
-      FlushMenuThemes();
+      g_FlushMenuThemes();
     }
   }
 }
+
+static void Refresh() {
+  if (g_FlushMenuThemes) {
+    g_FlushMenuThemes();  // Re-flush when theme changes at runtime
+  }
+}
+}
 ```
 
-Call `InitDarkMode()` during plugin registration before creating any menus.
+**Dynamic Theme Change Handling:**
+
+When user changes Windows theme while app is running, handle `WM_SETTINGCHANGE`:
+
+```cpp
+std::optional<LRESULT> DesktopShellPlugin::HandleWindowMessage(
+    HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
+  
+  // Handle theme changes at runtime
+  if (message == WM_SETTINGCHANGE && lparam) {
+    // lParam points to string indicating what changed
+    // "ImmersiveColorSet" = light/dark mode toggle
+    if (wcscmp(reinterpret_cast<LPCWSTR>(lparam),
+               L"ImmersiveColorSet") == 0) {
+      DarkMode::Refresh();  // Refresh menu theming
+    }
+  }
+  
+  // ... rest of message handling
+}
+```
+
+**How it works:**
+- `WM_SETTINGCHANGE` - Windows sends this when system settings change
+- `lParam` - Contains pointer to string indicating what changed
+- `"ImmersiveColorSet"` - This string means light/dark mode was toggled
+- `wcscmp()` - Compares wide strings, returns 0 if equal
 
 **Sequence:**
 
@@ -60,13 +97,22 @@ Plugin initialization
 SetPreferredAppMode(AllowDark)  // Allows dark mode, follows system
       |
       ▼
-FlushMenuThemes()
+FlushMenuThemes()               // Initial flush
       |
       ▼
 CreatePopupMenu() / TrackPopupMenu()
       |
       ▼
-Menu follows system theme automatically
+Menu follows system theme
+      |
+      ▼
+User changes theme ──► WM_SETTINGCHANGE
+                              |
+                              ▼
+                        FlushMenuThemes()
+                              |
+                              ▼
+                        Menu updates automatically
 ```
 
 **Behavior:**
@@ -80,11 +126,8 @@ Menu follows system theme automatically
 - `SetPreferredAppMode()` - ordinal 135
 - `FlushMenuThemes()` - ordinal 136
 
-**Note:** These are undocumented APIs. They work on Windows 10 1809+ and
-Windows 11, but may change in future Windows versions. This is the same
-approach used by Microsoft Explorer and other system apps.
-
-**Status:** Implementation planned but not yet coded or tested.
+**Note:** These are undocumented APIs used by Microsoft Explorer. They work
+on Windows 10 1809+ and Windows 11.
 
 ### Issue 2: Menu Dismissal (Click Outside Doesn't Close) ✅ SOLVED
 
@@ -426,10 +469,11 @@ void DesktopShellPlugin::HandleMethodCall(
 
 ## Testing Checklist
 
-### Visual Styles ⏳
+### Visual Styles ✅
 
 - [x] Menu appears with modern Windows 10/11 styling
-- [ ] Menu respects system light/dark theme
+- [x] Menu respects system light/dark theme
+- [x] Menu updates when theme changes at runtime
 - [x] Menu uses system accent color
 - [x] Menu renders correctly on HiDPI displays
 
