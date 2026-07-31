@@ -1,3 +1,5 @@
+import 'package:unwrap_me/unwrap_me.dart';
+
 /// A menu item for the system tray context menu.
 final class MenuItem {
   /// Unique identifier for the menu item.
@@ -63,5 +65,5 @@ final class Menu {
   }
 
   /// Find a menu item by its sequential ID.
-  MenuItem? getMenuItemById(int id) => _idToItem[id];
+  Option<MenuItem> getMenuItemById(int id) => Option.fromNullable(_idToItem[id]);
 }
