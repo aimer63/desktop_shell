@@ -84,14 +84,18 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _showDot() async {
-    final result = await widget.shell.dotOnTrayIcon();
+    final result = await widget.shell.setTrayIcon(
+      Platform.isWindows ? 'assets/app_icon_dot.ico' : 'assets/app_icon_dot.png',
+    );
     result.map((_) {
       setState(() => _status = 'Dot shown on tray icon');
     });
   }
 
   Future<void> _removeDot() async {
-    final result = await widget.shell.dotOffTrayIcon();
+    final result = await widget.shell.setTrayIcon(
+      Platform.isWindows ? 'assets/app_icon.ico' : 'assets/app_icon.png',
+    );
     result.map((_) {
       setState(() => _status = 'Dot removed from tray icon');
     });

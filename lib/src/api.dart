@@ -94,12 +94,6 @@ abstract class DesktopShell {
   /// Set prevent close flag.
   Future<Result<(), WindowPreventCloseError>> setPreventClose(bool prevent);
 
-  /// Show notification dot on tray icon.
-  Future<Result<(), TrayIconError>> dotOnTrayIcon();
-
-  /// Hide notification dot from tray icon.
-  Future<Result<(), TrayIconError>> dotOffTrayIcon();
-
   /// Cleanup and destroy resources.
   Future<Result<(), ShellDestroyError>> destroy();
 }
@@ -111,7 +105,6 @@ final class _DesktopShellImpl implements DesktopShell {
   final void Function(DesktopShell shell, MenuItem item) onTrayMenuItemClick;
 
   Option<Menu> _currentMenu = const None();
-  Option<String> _currentIconPath = const None();
   bool _isDestroyed = false;
 
   _DesktopShellImpl({
@@ -159,7 +152,6 @@ final class _DesktopShellImpl implements DesktopShell {
       }
 
       if (result['success'] == true) {
-        _currentIconPath = Some(iconPath);
         return const Ok(());
       }
 
@@ -393,69 +385,5 @@ final class _DesktopShellImpl implements DesktopShell {
     } catch (e) {
       return Err(ShellDestroyError(e.toString()));
     }
-  }
-
-  @override
-  Future<Result<(), TrayIconError>> dotOnTrayIcon() async {
-    if (_isDestroyed) {
-      return const Err(TrayIconError('Shell has been destroyed'));
-    }
-
-    if (_currentIconPath case Some(:final value)) {
-      // Only add dot if not already present
-      if (!_isDotIconPath(value)) {
-        return setTrayIcon(_getDotIconPath(value));
-      }
-      return const Ok(());
-    }
-    return const Err(TrayIconError('No icon set'));
-  }
-
-  @override
-  Future<Result<(), TrayIconError>> dotOffTrayIcon() async {
-    if (_isDestroyed) {
-      return const Err(TrayIconError('Shell has been destroyed'));
-    }
-
-    if (_currentIconPath case Some(:final value)) {
-      // Only remove dot if present
-      if (_isDotIconPath(value)) {
-        return setTrayIcon(_getNormalIconPath(value));
-      }
-      return const Ok(());
-    }
-    return const Err(TrayIconError('No icon set'));
-  }
-
-  bool _isDotIconPath(String path) {
-    final dotIndex = path.lastIndexOf('.');
-    if (dotIndex == -1) return path.endsWith('_dot');
-    return path.substring(0, dotIndex).endsWith('_dot');
-  }
-
-  String _getDotIconPath(String normalPath) {
-    // Insert "_dot" before extension
-    // "assets/my_icon.png" -> "assets/my_icon_dot.png"
-    final dotIndex = normalPath.lastIndexOf('.');
-    if (dotIndex == -1) return '${normalPath}_dot';
-    return '${normalPath.substring(0, dotIndex)}_dot${normalPath.substring(dotIndex)}';
-  }
-
-  String _getNormalIconPath(String dotPath) {
-    // Remove "_dot" before extension
-    // "assets/my_icon_dot.png" -> "assets/my_icon.png"
-    final dotIndex = dotPath.lastIndexOf('.');
-    if (dotIndex == -1) {
-      if (dotPath.endsWith('_dot')) {
-        return dotPath.substring(0, dotPath.length - 4);
-      }
-      return dotPath;
-    }
-    final base = dotPath.substring(0, dotIndex);
-    final ext = dotPath.substring(dotIndex);
-    if (base.endsWith('_dot')) {
-      return '${base.substring(0, base.length - 4)}$ext';
-    }
-    return dotPath;
   }
 }
