@@ -168,45 +168,20 @@ Use pattern matching extensively for control flow:
 
 ```dart
 // Switch expressions - REQUIRED for sealed types
-final result = await initialize();
+final result = await DesktopShell.initialize();
 return switch (result) {
   case Ok(value: final shell) => shell,
-  case Err(:final error) => throw error,
+  case Err(:final error) => exit(1),
 };
 
 // Destructuring
 final (name, version) = packageInfo;
 ```
 
-#### Sealed Classes
+#### Sealed Classes and Typestate Pattern
 
-Use sealed classes for protocol and state types:
-
-```dart
-sealed class InitState {
-  const InitState();
-}
-
-final class InitLoading extends InitState {
-  const InitLoading();
-}
-
-final class InitError extends InitState {
-  final String message;
-  const InitError(this.message);
-}
-
-final class InitReady extends InitState {
-  final DesktopShell shell;
-  const InitReady(this.shell);
-}
-```
-
-**Rule:** All sealed types MUST be handled exhaustively. The compiler enforces this.
-
-#### Typestate Pattern
-
-Use Dart 3 sealed classes to implement the typestate pattern:
+Use sealed classes for protocol and state types. This implements the typestate
+pattern with compiler-enforced exhaustive handling:
 
 ```dart
 sealed class ShellState {
@@ -228,10 +203,13 @@ final class ShellError extends ShellState {
 }
 ```
 
+**Rule:** All sealed types MUST be handled exhaustively. The compiler enforces
+this via pattern matching.
+
 **Benefits:**
 
 - Zero nullable fields in state management
-- Compiler-enforced exhaustive handling via pattern matching
+- Compiler-enforced exhaustive handling
 - Self-documenting state machine transitions
 - `const` constructors for immutable state objects
 

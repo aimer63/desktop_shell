@@ -76,13 +76,6 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   String _status = 'Window is visible';
 
-  Future<void> _showWindow() async {
-    final result = await widget.shell.showWindow();
-    result.map((_) {
-      setState(() => _status = 'Window is visible');
-    });
-  }
-
   Future<void> _hideWindow() async {
     final result = await widget.shell.hideWindow();
     result.map((_) {
@@ -90,10 +83,17 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  Future<void> _focusWindow() async {
-    final result = await widget.shell.focusWindow();
+  Future<void> _showDot() async {
+    final result = await widget.shell.dotOnTrayIcon();
     result.map((_) {
-      setState(() => _status = 'Window is focused');
+      setState(() => _status = 'Dot shown on tray icon');
+    });
+  }
+
+  Future<void> _removeDot() async {
+    final result = await widget.shell.dotOffTrayIcon();
+    result.map((_) {
+      setState(() => _status = 'Dot removed from tray icon');
     });
   }
 
@@ -116,18 +116,18 @@ class _MyHomePageState extends State<MyHomePage> {
             Text(_status, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 32),
             ElevatedButton(
-              onPressed: _showWindow,
-              child: const Text('Show Window'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
               onPressed: _hideWindow,
               child: const Text('Hide to Tray'),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _focusWindow,
-              child: const Text('Focus Window'),
+              onPressed: _showDot,
+              child: const Text('Show Dot'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _removeDot,
+              child: const Text('Remove Dot'),
             ),
             const SizedBox(height: 16),
             ElevatedButton(

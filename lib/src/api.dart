@@ -94,6 +94,12 @@ abstract class DesktopShell {
   /// Set prevent close flag.
   Future<Result<(), WindowPreventCloseError>> setPreventClose(bool prevent);
 
+  /// Show notification dot on tray icon.
+  Future<Result<(), TrayIconError>> dotOnTrayIcon();
+
+  /// Hide notification dot from tray icon.
+  Future<Result<(), TrayIconError>> dotOffTrayIcon();
+
   /// Cleanup and destroy resources.
   Future<Result<(), ShellDestroyError>> destroy();
 }
@@ -105,6 +111,7 @@ final class _DesktopShellImpl implements DesktopShell {
   final void Function(DesktopShell shell, MenuItem item) onTrayMenuItemClick;
 
   Menu? _currentMenu;
+  String? _currentIconPath;
   bool _isDestroyed = false;
 
   _DesktopShellImpl({
@@ -151,6 +158,7 @@ final class _DesktopShellImpl implements DesktopShell {
       }
 
       if (result['success'] == true) {
+        _currentIconPath = iconPath;
         return const Ok(());
       }
 
@@ -383,5 +391,42 @@ final class _DesktopShellImpl implements DesktopShell {
     } catch (e) {
       return Err(ShellDestroyError(e.toString()));
     }
+  }
+
+  @override
+  Future<Result<(), TrayIconError>> dotOnTrayIcon() async {
+    if (_isDestroyed) {
+      return const Err(TrayIconError('Shell has been destroyed'));
+    }
+
+    if (_currentIconPath == null) {
+      return const Err(TrayIconError('No icon set'));
+    }
+
+    final dotPath = _getDotIconPath(_currentIconPath!);
+    return setTrayIcon(dotPath);
+  }
+
+  @override
+  Future<Result<(), TrayIconError>> dotOffTrayIcon() async {
+    if (_isDestroyed) {
+      return const Err(TrayIconError('Shell has been destroyed'));
+    }
+
+    if (_currentIconPath == null) {
+      return const Err(TrayIconError('No icon set'));
+    }
+
+    // Remove _dot suffix if present
+    final normalPath = _currentIconPath!.replaceAll('_dot.', '.');
+    return setTrayIcon(normalPath);
+  }
+
+  String _getDotIconPath(String normalPath) {
+    // Insert "_dot" before extension
+    // "assets/my_icon.png" -> "assets/my_icon_dot.png"
+    final dotIndex = normalPath.lastIndexOf('.');
+    if (dotIndex == -1) return '${normalPath}_dot';
+    return '${normalPath.substring(0, dotIndex)}_dot${normalPath.substring(dotIndex)}';
   }
 }
