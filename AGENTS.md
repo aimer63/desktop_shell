@@ -96,6 +96,10 @@ flutter analyze && flutter test && dart format --output=none --set-exit-if-chang
 
 **NEVER use the word "frustrated" or any variation.** Use neutral, technical language.
 
+**Do not present options or ask "What do you want to do?"**
+When the user wants options or wants to do something, they will ask directly.
+Do not prompt or pressure. Wait for them to state their intent.
+
 ## Clarification First
 
 - Ask for clarification when instructions are unclear

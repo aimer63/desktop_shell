@@ -3,7 +3,7 @@
 #include <flutter_linux/flutter_linux.h>
 #include <gtk/gtk.h>
 
-#include "tray/tray_manager.h"
+#include "tray/tray_icon.h"
 #include "window/window_manager.h"
 
 #define DESKTOP_SHELL_PLUGIN(obj) \
@@ -14,7 +14,7 @@ struct _DesktopShellPlugin {
   GObject parent_instance;
   FlPluginRegistrar* registrar;
   FlMethodChannel* channel;
-  DesktopShellTrayManager* tray_manager;
+  TrayIcon* tray_icon;
   DesktopShellWindowManager* window_manager;
 };
 
@@ -32,9 +32,9 @@ static void desktop_shell_plugin_init(DesktopShellPlugin* self) {}
 static void desktop_shell_plugin_dispose(GObject* object) {
   DesktopShellPlugin* self = DESKTOP_SHELL_PLUGIN(object);
 
-  if (self->tray_manager != nullptr) {
-    desktop_shell_tray_manager_destroy(self->tray_manager);
-    self->tray_manager = nullptr;
+  if (self->tray_icon != nullptr) {
+    tray_icon_destroy(self->tray_icon);
+    self->tray_icon = nullptr;
   }
 
   if (self->window_manager != nullptr) {
@@ -72,7 +72,7 @@ static FlMethodResponse* create_error_response(const gchar* message,
 
 static FlMethodResponse* handle_set_tray_icon(DesktopShellPlugin* self,
                                                FlValue* args) {
-  if (self->tray_manager == nullptr) {
+  if (self->tray_icon == nullptr) {
     return create_error_response("Tray not initialized",
                                  "TRAY_NOT_INITIALIZED");
   }
@@ -89,7 +89,7 @@ static FlMethodResponse* handle_set_tray_icon(DesktopShellPlugin* self,
   }
 
   const gchar* icon_path = fl_value_get_string(icon_path_value);
-  if (desktop_shell_tray_manager_set_icon(self->tray_manager, icon_path)) {
+  if (tray_icon_set_icon(self->tray_icon, icon_path)) {
     return create_success_response("OK");
   } else {
     return create_error_response("Failed to set tray icon", "SET_ICON_FAILED");
@@ -98,7 +98,7 @@ static FlMethodResponse* handle_set_tray_icon(DesktopShellPlugin* self,
 
 static FlMethodResponse* handle_set_tray_menu(DesktopShellPlugin* self,
                                                FlValue* args) {
-  if (self->tray_manager == nullptr) {
+  if (self->tray_icon == nullptr) {
     return create_error_response("Tray not initialized",
                                  "TRAY_NOT_INITIALIZED");
   }
@@ -113,7 +113,7 @@ static FlMethodResponse* handle_set_tray_menu(DesktopShellPlugin* self,
     return create_error_response("Missing or invalid menu", "MISSING_MENU");
   }
 
-  if (desktop_shell_tray_manager_set_menu(self->tray_manager, menu_value)) {
+  if (tray_icon_set_menu(self->tray_icon, menu_value)) {
     return create_success_response("OK");
   } else {
     return create_error_response("Failed to set tray menu", "SET_MENU_FAILED");
@@ -121,7 +121,7 @@ static FlMethodResponse* handle_set_tray_menu(DesktopShellPlugin* self,
 }
 
 static FlMethodResponse* handle_pop_up_tray_menu(DesktopShellPlugin* self) {
-  if (self->tray_manager == nullptr) {
+  if (self->tray_icon == nullptr) {
     return create_error_response("Tray not initialized",
                                  "TRAY_NOT_INITIALIZED");
   }
@@ -199,9 +199,9 @@ static FlMethodResponse* handle_set_prevent_close(DesktopShellPlugin* self,
 }
 
 static FlMethodResponse* handle_destroy(DesktopShellPlugin* self) {
-  if (self->tray_manager != nullptr) {
-    desktop_shell_tray_manager_destroy(self->tray_manager);
-    self->tray_manager = nullptr;
+  if (self->tray_icon != nullptr) {
+    tray_icon_destroy(self->tray_icon);
+    self->tray_icon = nullptr;
   }
   if (self->window_manager != nullptr) {
     desktop_shell_window_manager_destroy(self->window_manager);
@@ -274,8 +274,8 @@ void desktop_shell_plugin_register_with_registrar(
     window = GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(view)));
   }
 
-  // Initialize tray manager (with channel for callbacks)
-  plugin->tray_manager = desktop_shell_tray_manager_new(plugin->channel);
+  // Initialize tray icon (with channel for callbacks)
+  plugin->tray_icon = tray_icon_new(plugin->channel);
 
   // Initialize window manager
   plugin->window_manager = desktop_shell_window_manager_new(window);

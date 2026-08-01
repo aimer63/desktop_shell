@@ -10,6 +10,8 @@ add_library(${PLUGIN_NAME} SHARED
   "desktop_shell_plugin.cpp"
   "tray/tray_icon.cpp"
   "tray/tray_icon.h"
+  "tray/tray_menu.cpp"
+  "tray/tray_menu.h"
   "window/window_manager.cpp"
   "window/window_manager.h"
 )

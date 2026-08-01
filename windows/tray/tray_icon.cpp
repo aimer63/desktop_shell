@@ -1,4 +1,5 @@
 #include "tray_icon.h"
+#include "tray_menu.h"
 
 #include <windows.h>
 #include <flutter/standard_method_codec.h>
@@ -105,67 +106,7 @@ bool TrayIcon::SetMenu(const flutter::EncodableList& menu_items) {
 }
 
 bool TrayIcon::PopUpContextMenu() {
-  
-  if (!hwnd_ || menu_items_.empty()) {
-    return false;
-  }
-
-  // Create popup menu
-  HMENU hMenu = CreatePopupMenu();
-  if (!hMenu) {
-    return false;
-  }
-  
-
-  // Build menu from items
-  for (const auto& item : menu_items_) {
-    if (std::holds_alternative<flutter::EncodableMap>(item)) {
-      auto map = std::get<flutter::EncodableMap>(item);
-
-      // Get ID from menu item (hashCode from Dart)
-      int id = 0;
-      auto id_it = map.find(flutter::EncodableValue("id"));
-      if (id_it != map.end() &&
-          std::holds_alternative<int>(id_it->second)) {
-        id = std::get<int>(id_it->second);
-      }
-
-      std::string label;
-      std::string type = "normal";
-
-      auto label_it = map.find(flutter::EncodableValue("label"));
-      if (label_it != map.end() &&
-          std::holds_alternative<std::string>(label_it->second)) {
-        label = std::get<std::string>(label_it->second);
-      }
-
-      auto type_it = map.find(flutter::EncodableValue("type"));
-      if (type_it != map.end() &&
-          std::holds_alternative<std::string>(type_it->second)) {
-        type = std::get<std::string>(type_it->second);
-      }
-
-      if (type == "separator") {
-        AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
-      } else {
-        std::wstring wide_label = Utf8ToWide(label);
-        AppendMenuW(hMenu, MF_STRING, id, wide_label.c_str());
-      }
-    }
-  }
-
-  // Get cursor position
-  POINT pt;
-  GetCursorPos(&pt);
-
-  // Show menu
-  SetForegroundWindow(hwnd_);
-  TrackPopupMenu(hMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON,
-                 pt.x, pt.y, 0, hwnd_, nullptr);
-
-  DestroyMenu(hMenu);
-
-  return true;
+  return ShowTrayContextMenu(hwnd_, menu_items_);
 }
 
 bool TrayIcon::Destroy() {
