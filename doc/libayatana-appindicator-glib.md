@@ -9,6 +9,38 @@ The new GLib-based implementation eliminates GTK dependencies from the tray
 functionality, using `GMenu` and `GAction` instead of `GtkMenu` with direct
 callbacks.
 
+## Status: SUSPENDED
+
+**Date:** 2025-08-01
+
+**Reason:** Implementation suspended due to desktop environment incompatibility.
+
+**Root Cause:** libayatana-appindicator-glib uses new dbus protocol
+(`org.gtk.Menus` + `org.gtk.Actions`) that is not supported by current GNOME
+or XFCE panel implementations.
+
+**Evidence:**
+- GNOME Shell requests menu via old protocol: `com.canonical.dbusmenu`
+- libayatana-appindicator-glib exports via new protocol: `org.gtk.Menus`
+- dbus-monitor shows menu is exported correctly but never displayed
+- Panel returns: "No such interface 'com.canonical.dbusmenu'"
+- Confirmed by upstream issue #102: "StatusNotifierItem icon visible but menu
+  not rendered in GNOME and XFCE"
+
+**Upstream Issue:**
+https://github.com/AyatanaIndicators/libayatana-appindicator-glib/issues/102
+
+**Decision:** Remain on GTK-based `libayatana-appindicator` until desktop
+environments implement support for the new protocol. The -glib library is
+premature for current Linux desktop adoption.
+
+## Implementation Decisions
+
+1. **Constructor**: Keep `app_indicator_new()` - NOT deprecated in GLib version
+2. **Menu timing**: Create empty GMenu immediately in `tray_icon_set_icon()`
+   (will revisit lazy initialization later)
+3. **Separators**: Skip for now (will revisit proper separator support later)
+
 ## Files to Modify
 
 ### 1. linux/CMakeLists.txt
@@ -33,7 +65,7 @@ pkg_check_modules(APPINDICATOR REQUIRED IMPORTED_TARGET ayatana-appindicator-gli
 - `HAVE_AYATANA` conditional compile definitions
 - Legacy `appindicator3-0.1` fallback
 
-### 2. linux/tray/tray_manager.h
+### 2. linux/tray/tray_icon.h
 
 **Change struct fields:**
 
@@ -46,7 +78,7 @@ GMenu* menu;
 GSimpleActionGroup* actions;
 ```
 
-### 3. linux/tray/tray_manager.cc
+### 3. linux/tray/tray_icon.cc
 
 #### Header Include
 
@@ -67,7 +99,7 @@ GSimpleActionGroup* actions;
 **OLD - GtkMenu with signal callbacks:**
 
 ```cpp
-static GtkWidget* build_menu(DesktopShellTrayManager* self, FlValue* items) {
+static GtkWidget* build_menu(TrayIcon* self, FlValue* items) {
   GtkWidget* menu = gtk_menu_new();
 
   for (gint i = 0; i < fl_value_get_length(items); i++) {
@@ -90,7 +122,7 @@ static GtkWidget* build_menu(DesktopShellTrayManager* self, FlValue* items) {
 **NEW - GMenu + GSimpleActionGroup:**
 
 ```cpp
-static void build_menu_and_actions(DesktopShellTrayManager* self,
+static void build_menu_and_actions(TrayIcon* self,
                                     FlValue* items) {
   // Create new menu model
   if (self->menu != nullptr) {
@@ -128,7 +160,9 @@ static void build_menu_and_actions(DesktopShellTrayManager* self,
     }
 
     if (strcmp(type, "separator") == 0) {
-      g_menu_append(self->menu, "", nullptr);  // Empty label = separator
+      // SKIP: Separators not implemented in first pass
+      // TODO: Revisit separator support
+      continue;
     } else {
       const gchar* label = "";
       if (label_value != nullptr &&
@@ -191,7 +225,7 @@ static void build_menu_and_actions(DesktopShellTrayManager* self,
 ```cpp
 static void on_menu_item_activate(GtkMenuItem* item, gpointer user_data) {
   gint id = GPOINTER_TO_INT(user_data);
-  DesktopShellTrayManager* self = DESKTOP_SHELL_TRAY_MANAGER(
+  TrayIcon* self = TRAY_ICON(
       g_object_get_data(G_OBJECT(item), "manager"));
 
   if (self->channel != nullptr) {
@@ -213,7 +247,7 @@ static void on_menu_item_activate(GSimpleAction* action,
   (void)user_data;  // Unused - data stored in action
 
   gint id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(action), "item_id"));
-  DesktopShellTrayManager* self = DESKTOP_SHELL_TRAY_MANAGER(
+  TrayIcon* self = TRAY_ICON(
       g_object_get_data(G_OBJECT(action), "manager"));
 
   if (self != nullptr && self->channel != nullptr) {
@@ -265,14 +299,21 @@ app_indicator_set_menu(manager->indicator, GTK_MENU(manager->menu));
 **NEW:**
 
 ```cpp
-// Menu and actions created lazily in set_menu
-// No initialization needed here
+// Create empty GMenu immediately (some DEs require menu to render indicator)
+if (self->menu == nullptr) {
+  self->menu = g_menu_new();
+}
+app_indicator_set_menu(self->indicator, self->menu);
+// Actions will be set later in tray_icon_set_menu()
 ```
+
+**Note:** We create an empty menu immediately so the indicator renders.
+Menu population and actions happen later in `tray_icon_set_menu()`.
 
 ## User Dependency Changes
 
 | Aspect | Before | After |
-|--------|--------|-------|
+| -------- | -------- | ------- |
 | **Runtime dependency** | `libayatana-appindicator` | `libayatana-appindicator-glib` |
 | **Install (Arch)** | `libayatana-appindicator` | `libayatana-appindicator-glib` (AUR) |
 | **Install (Ubuntu)** | `libayatana-appindicator3-1` | TBD (newer distros) |
@@ -293,7 +334,7 @@ The GLib version is **NOT** a drop-in replacement:
 - [ ] Clicking tray icon shows menu
 - [ ] Menu items are clickable
 - [ ] Menu item clicks invoke Dart callback with correct ID
-- [ ] Separators display correctly
+- [ ] ~~Separators display correctly~~ (not implemented in first pass)
 - [ ] Disabled items are grayed out
 - [ ] Changing menu at runtime works
 - [ ] Cleanup on destroy works without crashes
