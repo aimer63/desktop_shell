@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unified Dart API**: Complete redesign with `unwrap_me` Result/Option types for
   explicit error handling. All operations return `Result<(), ErrorType>` instead of
   throwing exceptions. Sealed error hierarchy with detailed error messages.
+- **Attempted libayatana-appindicator-glib migration** (SUSPENDED):
+  - Migrated Linux tray from GTK-based to GLib-only implementation
+  - Replaced GtkMenu with GMenu/GSimpleAction for dbus-based menu export
+  - Updated CMakeLists.txt to require ayatana-appindicator-glib
+  - **Status**: Suspended due to GNOME/XFCE incompatibility (see doc/libayatana-appindicator-glib.md)
+  - GNOME Shell uses old `com.canonical.dbusmenu` protocol, new library uses
+    `org.gtk.Menus` protocol which is not yet supported by major desktop environments
+  - Decision: Remain on GTK-based libayatana-appindicator until DEs catch up
 - **Single platform channel**: Unified `'desktop_shell'` channel replacing separate
   `tray_manager` and `window_manager` channels. All tray and window operations
   go through one channel with consistent error handling.
