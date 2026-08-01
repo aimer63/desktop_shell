@@ -34,6 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependency) with support for separators and click handlers.
 - **Analysis configuration**: `analysis_options.yaml` with `flutter_lints` and
   exclusion of archived packages.
+- **Suppressed deprecation warning in Linux tray**:
+  - Added `#pragma GCC diagnostic ignored` around `app_indicator_new()` call
+  - Library marks constructor as deprecated but provides no replacement
+  - Warning suppressed only for this specific call, not globally
+  - Build now completes without warnings while maintaining functionality
+- **Documentation updates**:
+  - Updated README.md with Linux implementation notes section
+  - Documented deprecation warning and libayatana-appindicator-glib migration attempt
+  - Added link to full technical details in doc/libayatana-appindicator-glib.md
 
 ### Changed
 

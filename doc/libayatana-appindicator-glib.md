@@ -34,6 +34,16 @@ https://github.com/AyatanaIndicators/libayatana-appindicator-glib/issues/102
 environments implement support for the new protocol. The -glib library is
 premature for current Linux desktop adoption.
 
+**Library Description (from README):**
+
+> The Ayatana Application Indicator (Shared Library) - A library to allow
+> applications to export a menu into an Application Indicators aware menu bar.
+> Although based on SNI, this new GLib-only reimplementation uses Gio menus and
+> actions (exported to **org.gtk.Menus** and **org.gtk.Actions**) instead of the
+> old dbusmenu (formerly exported to **com.canonical.dbusmenu**).
+>
+> -- https://github.com/AyatanaIndicators/libayatana-appindicator-glib
+
 ## Implementation Decisions
 
 1. **Constructor**: Keep `app_indicator_new()` - NOT deprecated in GLib version

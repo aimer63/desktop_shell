@@ -66,8 +66,14 @@ gboolean tray_icon_set_icon(TrayIcon* self, const gchar* icon_path) {
 
   // Create indicator if not exists
   if (self->indicator == nullptr) {
+    // The library marks app_indicator_new() as deprecated but provides no
+    // alternative constructor. This is the only way to create an AppIndicator.
+    // Suppress the deprecation warning since we have no choice.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     self->indicator = app_indicator_new("desktop_shell", icon_path,
                                         APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
+#pragma GCC diagnostic pop
 
     // Create empty menu initially
     if (self->menu == nullptr) {
