@@ -22,14 +22,14 @@ G_DEFINE_TYPE(TrayIcon, tray_icon, G_TYPE_OBJECT)
 static void tray_icon_dispose(GObject* object) {
   TrayIcon* self = TRAY_ICON(object);
 
-  if (self->indicator != NULL) {
+  if (self->indicator != nullptr) {
     app_indicator_set_status(self->indicator, APP_INDICATOR_STATUS_PASSIVE);
     g_clear_object(&self->indicator);
   }
 
-  if (self->menu != NULL && GTK_IS_WIDGET(self->menu)) {
+  if (self->menu != nullptr && GTK_IS_WIDGET(self->menu)) {
     gtk_widget_destroy(self->menu);
-    self->menu = NULL;
+    self->menu = nullptr;
   }
 
   g_clear_object(&self->channel);
@@ -42,35 +42,35 @@ static void tray_icon_class_init(TrayIconClass* klass) {
 }
 
 static void tray_icon_init(TrayIcon* self) {
-  self->channel = NULL;
-  self->indicator = NULL;
-  self->menu = NULL;
+  self->channel = nullptr;
+  self->indicator = nullptr;
+  self->menu = nullptr;
 }
 
 TrayIcon* tray_icon_new(FlMethodChannel* channel) {
-  TrayIcon* self = TRAY_ICON(g_object_new(tray_icon_get_type(), NULL));
+  TrayIcon* self = TRAY_ICON(g_object_new(tray_icon_get_type(), nullptr));
   self->channel = FL_METHOD_CHANNEL(g_object_ref(channel));
   return self;
 }
 
 void tray_icon_destroy(TrayIcon* self) {
-  if (self != NULL) {
+  if (self != nullptr) {
     g_object_unref(self);
   }
 }
 
 gboolean tray_icon_set_icon(TrayIcon* self, const gchar* icon_path) {
-  if (self == NULL) {
+  if (self == nullptr) {
     return FALSE;
   }
 
   // Create indicator if not exists
-  if (self->indicator == NULL) {
+  if (self->indicator == nullptr) {
     self->indicator = app_indicator_new("desktop_shell", icon_path,
                                         APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
 
     // Create empty menu initially
-    if (self->menu == NULL) {
+    if (self->menu == nullptr) {
       self->menu = gtk_menu_new();
       gtk_widget_show(self->menu);
     }
@@ -85,20 +85,20 @@ gboolean tray_icon_set_icon(TrayIcon* self, const gchar* icon_path) {
 }
 
 gboolean tray_icon_set_menu(TrayIcon* self, FlValue* menu_items) {
-  if (self == NULL) {
+  if (self == nullptr) {
     return FALSE;
   }
 
   // Destroy old menu
-  if (self->menu != NULL) {
+  if (self->menu != nullptr) {
     gtk_widget_destroy(self->menu);
-    self->menu = NULL;
+    self->menu = nullptr;
   }
 
   // Build new menu using tray_menu module
   self->menu = tray_menu_build(self, menu_items);
 
-  if (self->indicator != NULL) {
+  if (self->indicator != nullptr) {
     app_indicator_set_menu(self->indicator, GTK_MENU(self->menu));
   }
 
@@ -106,5 +106,5 @@ gboolean tray_icon_set_menu(TrayIcon* self, FlValue* menu_items) {
 }
 
 FlMethodChannel* tray_icon_get_channel(TrayIcon* self) {
-  return self != NULL ? self->channel : NULL;
+  return self != nullptr ? self->channel : nullptr;
 }

@@ -15,7 +15,7 @@ struct _DesktopShellPlugin {
   FlPluginRegistrar* registrar;
   FlMethodChannel* channel;
   TrayIcon* tray_icon;
-  DesktopShellWindowManager* window_manager;
+  WindowManager* window_manager;
 };
 
 G_DEFINE_TYPE(DesktopShellPlugin, desktop_shell_plugin, g_object_get_type())
@@ -38,7 +38,7 @@ static void desktop_shell_plugin_dispose(GObject* object) {
   }
 
   if (self->window_manager != nullptr) {
-    desktop_shell_window_manager_destroy(self->window_manager);
+    window_manager_destroy(self->window_manager);
     self->window_manager = nullptr;
   }
 
@@ -137,7 +137,7 @@ static FlMethodResponse* handle_show(DesktopShellPlugin* self) {
                                  "WINDOW_MANAGER_NOT_INITIALIZED");
   }
 
-  if (desktop_shell_window_manager_show(self->window_manager)) {
+  if (window_manager_show(self->window_manager)) {
     return create_success_response("OK");
   } else {
     return create_error_response("Failed to show window", "SHOW_FAILED");
@@ -150,7 +150,7 @@ static FlMethodResponse* handle_hide(DesktopShellPlugin* self) {
                                  "WINDOW_MANAGER_NOT_INITIALIZED");
   }
 
-  if (desktop_shell_window_manager_hide(self->window_manager)) {
+  if (window_manager_hide(self->window_manager)) {
     return create_success_response("OK");
   } else {
     return create_error_response("Failed to hide window", "HIDE_FAILED");
@@ -163,7 +163,7 @@ static FlMethodResponse* handle_focus(DesktopShellPlugin* self) {
                                  "WINDOW_MANAGER_NOT_INITIALIZED");
   }
 
-  if (desktop_shell_window_manager_focus(self->window_manager)) {
+  if (window_manager_focus(self->window_manager)) {
     return create_success_response("OK");
   } else {
     return create_error_response("Failed to focus window", "FOCUS_FAILED");
@@ -189,7 +189,7 @@ static FlMethodResponse* handle_set_prevent_close(DesktopShellPlugin* self,
   }
 
   gboolean prevent = fl_value_get_bool(prevent_value);
-  if (desktop_shell_window_manager_set_prevent_close(self->window_manager,
+  if (window_manager_set_prevent_close(self->window_manager,
                                                        prevent)) {
     return create_success_response("OK");
   } else {
@@ -204,7 +204,7 @@ static FlMethodResponse* handle_destroy(DesktopShellPlugin* self) {
     self->tray_icon = nullptr;
   }
   if (self->window_manager != nullptr) {
-    desktop_shell_window_manager_destroy(self->window_manager);
+    window_manager_destroy(self->window_manager);
     self->window_manager = nullptr;
   }
   return create_success_response("OK");
@@ -278,7 +278,7 @@ void desktop_shell_plugin_register_with_registrar(
   plugin->tray_icon = tray_icon_new(plugin->channel);
 
   // Initialize window manager
-  plugin->window_manager = desktop_shell_window_manager_new(window);
+  plugin->window_manager = window_manager_new(window);
 
   g_object_unref(plugin);
 }

@@ -4,7 +4,7 @@
 #include <gtk/gtk.h>
 
 // Define the instance struct
-struct _DesktopShellWindowManager {
+struct _WindowManager {
   GObject parent_instance;
   GtkWindow* window;
   gboolean prevent_close;
@@ -14,13 +14,13 @@ struct _DesktopShellWindowManager {
 // Define the class struct
 typedef struct {
   GObjectClass parent_class;
-} DesktopShellWindowManagerClass;
+} WindowManagerClass;
 
 // Define the type
-G_DEFINE_TYPE(DesktopShellWindowManager, desktop_shell_window_manager, G_TYPE_OBJECT)
+G_DEFINE_TYPE(WindowManager, window_manager, G_TYPE_OBJECT)
 
-static void desktop_shell_window_manager_init(DesktopShellWindowManager* self) {
-  self->window = nullptr;
+static void window_manager_init(WindowManager* self) {
+  self->window = NULL;
   self->prevent_close = FALSE;
   self->delete_event_handler_id = 0;
 }
@@ -28,7 +28,7 @@ static void desktop_shell_window_manager_init(DesktopShellWindowManager* self) {
 static gboolean on_delete_event(GtkWidget* widget,
                                 GdkEvent* event,
                                 gpointer user_data) {
-  DesktopShellWindowManager* self = (DesktopShellWindowManager*)user_data;
+  WindowManager* self = (WindowManager*)user_data;
 
   if (self->prevent_close) {
     // Hide window instead of closing
@@ -39,28 +39,28 @@ static gboolean on_delete_event(GtkWidget* widget,
   return FALSE;  // Allow close
 }
 
-static void desktop_shell_window_manager_finalize(GObject* object) {
-  DesktopShellWindowManager* self = (DesktopShellWindowManager*)object;
+static void window_manager_finalize(GObject* object) {
+  WindowManager* self = (WindowManager*)object;
 
-  if (self->window != nullptr && self->delete_event_handler_id > 0) {
+  if (self->window != NULL && self->delete_event_handler_id > 0) {
     g_signal_handler_disconnect(self->window, self->delete_event_handler_id);
   }
 
-  G_OBJECT_CLASS(desktop_shell_window_manager_parent_class)->finalize(object);
+  G_OBJECT_CLASS(window_manager_parent_class)->finalize(object);
 }
 
-static void desktop_shell_window_manager_class_init(DesktopShellWindowManagerClass* klass) {
+static void window_manager_class_init(WindowManagerClass* klass) {
   GObjectClass* object_class = G_OBJECT_CLASS(klass);
-  object_class->finalize = desktop_shell_window_manager_finalize;
+  object_class->finalize = window_manager_finalize;
 }
 
-DesktopShellWindowManager* desktop_shell_window_manager_new(GtkWindow* window) {
-  DesktopShellWindowManager* manager = (DesktopShellWindowManager*)g_object_new(
-      desktop_shell_window_manager_get_type(), nullptr);
+WindowManager* window_manager_new(GtkWindow* window) {
+  WindowManager* manager = (WindowManager*)g_object_new(
+      window_manager_get_type(), NULL);
 
   manager->window = window;
 
-  if (window != nullptr) {
+  if (window != NULL) {
     // Disconnect Flutter's delete-event handler first (Flutter 3.10.1+)
     // See: https://github.com/flutter/engine/pull/40033
     guint handler_id = g_signal_handler_find(
@@ -79,14 +79,14 @@ DesktopShellWindowManager* desktop_shell_window_manager_new(GtkWindow* window) {
   return manager;
 }
 
-void desktop_shell_window_manager_destroy(DesktopShellWindowManager* manager) {
-  if (manager != nullptr) {
+void window_manager_destroy(WindowManager* manager) {
+  if (manager != NULL) {
     g_object_unref(manager);
   }
 }
 
-gboolean desktop_shell_window_manager_show(DesktopShellWindowManager* manager) {
-  if (manager == nullptr || manager->window == nullptr) {
+gboolean window_manager_show(WindowManager* manager) {
+  if (manager == NULL || manager->window == NULL) {
     return FALSE;
   }
 
@@ -95,8 +95,8 @@ gboolean desktop_shell_window_manager_show(DesktopShellWindowManager* manager) {
   return TRUE;
 }
 
-gboolean desktop_shell_window_manager_hide(DesktopShellWindowManager* manager) {
-  if (manager == nullptr || manager->window == nullptr) {
+gboolean window_manager_hide(WindowManager* manager) {
+  if (manager == NULL || manager->window == NULL) {
     return FALSE;
   }
 
@@ -104,8 +104,8 @@ gboolean desktop_shell_window_manager_hide(DesktopShellWindowManager* manager) {
   return TRUE;
 }
 
-gboolean desktop_shell_window_manager_focus(DesktopShellWindowManager* manager) {
-  if (manager == nullptr || manager->window == nullptr) {
+gboolean window_manager_focus(WindowManager* manager) {
+  if (manager == NULL || manager->window == NULL) {
     return FALSE;
   }
 
@@ -113,10 +113,10 @@ gboolean desktop_shell_window_manager_focus(DesktopShellWindowManager* manager) 
   return TRUE;
 }
 
-gboolean desktop_shell_window_manager_set_prevent_close(
-    DesktopShellWindowManager* manager,
+gboolean window_manager_set_prevent_close(
+    WindowManager* manager,
     gboolean prevent) {
-  if (manager == nullptr) {
+  if (manager == NULL) {
     return FALSE;
   }
 

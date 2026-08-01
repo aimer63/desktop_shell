@@ -3,26 +3,25 @@
 
 #include <gtk/gtk.h>
 
-typedef struct _DesktopShellWindowManager DesktopShellWindowManager;
+typedef struct _WindowManager WindowManager;
 
 // Create a new window manager instance
-DesktopShellWindowManager* desktop_shell_window_manager_new(GtkWindow* window);
+WindowManager* window_manager_new(GtkWindow* window);
 
 // Destroy window manager and cleanup
-void desktop_shell_window_manager_destroy(DesktopShellWindowManager* manager);
+void window_manager_destroy(WindowManager* manager);
 
 // Show window
-gboolean desktop_shell_window_manager_show(DesktopShellWindowManager* manager);
+gboolean window_manager_show(WindowManager* manager);
 
 // Hide window
-gboolean desktop_shell_window_manager_hide(DesktopShellWindowManager* manager);
+gboolean window_manager_hide(WindowManager* manager);
 
 // Focus window
-gboolean desktop_shell_window_manager_focus(DesktopShellWindowManager* manager);
+gboolean window_manager_focus(WindowManager* manager);
 
 // Set prevent close
-gboolean desktop_shell_window_manager_set_prevent_close(
-    DesktopShellWindowManager* manager,
-    gboolean prevent);
+gboolean window_manager_set_prevent_close(WindowManager* manager,
+                                          gboolean prevent);
 
 #endif  // DESKTOP_SHELL_WINDOW_MANAGER_H_

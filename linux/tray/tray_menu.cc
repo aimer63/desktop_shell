@@ -10,14 +10,14 @@ static void on_menu_item_activate(GtkMenuItem* item, gpointer user_data);
 GtkWidget* tray_menu_build(TrayIcon* tray, FlValue* items) {
   GtkWidget* menu = gtk_menu_new();
 
-  if (items == NULL || fl_value_get_type(items) != FL_VALUE_TYPE_LIST) {
+  if (items == nullptr || fl_value_get_type(items) != FL_VALUE_TYPE_LIST) {
     gtk_widget_show(menu);
     return menu;
   }
 
   for (gint i = 0; i < fl_value_get_length(items); i++) {
     FlValue* item = fl_value_get_list_value(items, i);
-    if (item == NULL || fl_value_get_type(item) != FL_VALUE_TYPE_MAP) {
+    if (item == nullptr || fl_value_get_type(item) != FL_VALUE_TYPE_MAP) {
       continue;
     }
 
@@ -27,7 +27,7 @@ GtkWidget* tray_menu_build(TrayIcon* tray, FlValue* items) {
     FlValue* disabled_value = fl_value_lookup_string(item, "disabled");
 
     const gchar* type = "normal";
-    if (type_value != NULL &&
+    if (type_value != nullptr &&
         fl_value_get_type(type_value) == FL_VALUE_TYPE_STRING) {
       type = fl_value_get_string(type_value);
     }
@@ -38,20 +38,20 @@ GtkWidget* tray_menu_build(TrayIcon* tray, FlValue* items) {
       gtk_menu_shell_append(GTK_MENU_SHELL(menu), separator);
     } else {
       const gchar* label = "";
-      if (label_value != NULL &&
+      if (label_value != nullptr &&
           fl_value_get_type(label_value) == FL_VALUE_TYPE_STRING) {
         label = fl_value_get_string(label_value);
       }
 
       gint item_id = 0;
-      if (id_value != NULL &&
+      if (id_value != nullptr &&
           fl_value_get_type(id_value) == FL_VALUE_TYPE_INT) {
         item_id = fl_value_get_int(id_value);
       }
 
       GtkWidget* menu_item = gtk_menu_item_new_with_label(label);
 
-      if (disabled_value != NULL &&
+      if (disabled_value != nullptr &&
           fl_value_get_type(disabled_value) == FL_VALUE_TYPE_BOOL) {
         if (fl_value_get_bool(disabled_value)) {
           gtk_widget_set_sensitive(menu_item, FALSE);
@@ -78,13 +78,13 @@ static void on_menu_item_activate(GtkMenuItem* item, gpointer user_data) {
   TrayIcon* tray =
       TRAY_ICON(g_object_get_data(G_OBJECT(item), "tray"));
 
-  if (tray != NULL) {
+  if (tray != nullptr) {
     FlMethodChannel* channel = tray_icon_get_channel(tray);
-    if (channel != NULL) {
+    if (channel != nullptr) {
       g_autoptr(FlValue) args = fl_value_new_map();
       fl_value_set_string_take(args, "id", fl_value_new_int(id));
       fl_method_channel_invoke_method(channel, "onTrayMenuItemClick", args,
-                                      NULL, NULL, NULL);
+                                      nullptr, nullptr, nullptr);
     }
   }
 }

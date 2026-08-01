@@ -32,9 +32,9 @@ endif()
 
 add_library(${PLUGIN_NAME} SHARED
   "desktop_shell_plugin.cc"
-  "tray/tray_icon.c"
+  "tray/tray_icon.cc"
   "tray/tray_icon.h"
-  "tray/tray_menu.c"
+  "tray/tray_menu.cc"
   "tray/tray_menu.h"
   "window/window_manager.cc"
   "window/window_manager.h"
