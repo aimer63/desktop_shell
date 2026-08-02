@@ -20,6 +20,7 @@ callbacks.
 or XFCE panel implementations.
 
 **Evidence:**
+
 - GNOME Shell requests menu via old protocol: `com.canonical.dbusmenu`
 - libayatana-appindicator-glib exports via new protocol: `org.gtk.Menus`
 - dbus-monitor shows menu is exported correctly but never displayed
@@ -28,11 +29,25 @@ or XFCE panel implementations.
   not rendered in GNOME and XFCE"
 
 **Upstream Issue:**
-https://github.com/AyatanaIndicators/libayatana-appindicator-glib/issues/102
+<https://github.com/AyatanaIndicators/libayatana-appindicator-glib/issues/102>
 
 **Decision:** Remain on GTK-based `libayatana-appindicator` until desktop
 environments implement support for the new protocol. The -glib library is
 premature for current Linux desktop adoption.
+
+**Future Resolution:**
+
+Upstream PR #103 addresses this issue by adding parallel export of menus via
+`com.canonical.dbusmenu` protocol alongside the existing `org.gtk.Menus` export.
+This would make the library compatible with legacy trays (GNOME, KDE Plasma).
+
+- **PR:** <https://github.com/AyatanaIndicators/libayatana-appindicator-glib/pull/103>
+- **Status:** Open, under review
+- **Impact:** Once merged, the -glib library would work with current desktop
+  environments, making the migration viable.
+
+**Recommendation:** Monitor PR #103. Once merged and released, reconsider the
+migration to libayatana-appindicator-glib.
 
 **Library Description (from README):**
 
@@ -42,7 +57,7 @@ premature for current Linux desktop adoption.
 > actions (exported to **org.gtk.Menus** and **org.gtk.Actions**) instead of the
 > old dbusmenu (formerly exported to **com.canonical.dbusmenu**).
 >
-> -- https://github.com/AyatanaIndicators/libayatana-appindicator-glib
+> -- <https://github.com/AyatanaIndicators/libayatana-appindicator-glib>
 
 ## Implementation Decisions
 
